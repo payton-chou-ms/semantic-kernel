@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 import asyncio
+import os
 import sys
+from dotenv import load_dotenv
 
 from azure.identity.aio import DefaultAzureCredential
 
@@ -35,9 +37,12 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override  # pragma: no cover
 
+# Load environment variables from .env file
+load_dotenv()
+
 # Constants
 SEPARATOR_LINE = "*********************"
-MY_AZURE_OPENAI_ENDPOINT = "https://foundypbxy.openai.azure.com/openai/deployments/o4-mini/chat/completions?api-version=2025-01-01-preview"
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 
 
 """
