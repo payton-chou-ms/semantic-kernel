@@ -4,10 +4,16 @@ import asyncio
 from enum import Enum
 
 from pydantic import BaseModel
+from azure.identity.aio import DefaultAzureCredential
 
-from semantic_kernel.agents import Agent, ChatCompletionAgent, HandoffOrchestration, OrchestrationHandoffs
+from semantic_kernel.agents import Agent
+from semantic_kernel.agents.azure_ai.azure_ai_agent import AzureAIAgent
+from semantic_kernel.agents.azure_ai.azure_ai_agent_settings import AzureAIAgentSettings
+from semantic_kernel.agents.orchestration.handoffs import (
+    HandoffOrchestration,
+    OrchestrationHandoffs,
+)
 from semantic_kernel.agents.runtime import InProcessRuntime
-from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.contents import AuthorRole, ChatMessageContent
 from semantic_kernel.functions import kernel_function
 
@@ -55,41 +61,167 @@ class GithubPlugin:
     """GitHub 相關操作的外掛。"""
 
     @kernel_function
-    async def add_labels(self, issue_id: str, labels: list[GitHubLabels]) -> None:
+    async def add_labels(self, issue_id: str, labels: list[str]) -> None:
         """為 GitHub 問題新增標籤。"""
         await asyncio.sleep(1)  # 模擬網路延遲
-        print(f"正在為問題 {issue_id} 新增標籤 {labels}")
+        # 將字符串標籤轉換為 GitHubLabels 枚舉（如果可能的話）
+        parsed_labels = []
+        for label in labels:
+            try:
+                parsed_labels.append(GitHubLabels(label))
+            except ValueError:
+                # 如果無法轉換為枚舉，保留原始字符串
+                print(f"警告：標籤 '{label}' 不是有效的 GitHubLabels 枚舉值")
+                parsed_labels.append(label)
+        print(f"正在為問題 {issue_id} 新增標籤 {parsed_labels}")
 
     @kernel_function(description="建立解決問題的計劃。")
     async def create_plan(self, issue_id: str, plan: Plan) -> None:
         """為 GitHub 問題建立任務。"""
         await asyncio.sleep(1)  # 模擬網路延遲
-        print(f"正在為問題 {issue_id} 建立計劃，任務：\n{plan.model_dump_json(indent=2)}")
+        print(
+            f"正在為問題 {issue_id} 建立計劃，任務：\n{plan.model_dump_json(indent=2)}"
+        )
 
 
-def get_agents() -> tuple[list[Agent], OrchestrationHandoffs]:
+async def get_agents(client) -> tuple[list[Agent], OrchestrationHandoffs]:
     """回傳將參與移交編排的代理程式清單和移交關係。
 
     您可以自由新增或移除代理程式和移交連線。
     """
-    triage_agent = ChatCompletionAgent(
+    # Create triage agent in Azure AI Agent service
+    triage_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="TriageAgent",
         description="分流 GitHub 問題的代理程式",
         instructions="給定一個 GitHub 問題，進行分流。",
-        service=AzureChatCompletion(),
     )
-    python_agent = ChatCompletionAgent(
+    triage_agent = AzureAIAgent(
+        client=client,
+        definition=triage_agent_definition,
+    )
+
+    # Create python agent in Azure AI Agent service
+    python_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="PythonAgent",
         description="處理 Python 相關問題的代理程式",
         instructions="您是處理 Python 相關 GitHub 問題的代理程式。",
-        service=AzureChatCompletion(),
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "GithubPlugin-add_labels",
+                    "description": "為 GitHub 問題新增標籤。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "issue_id": {"type": "string", "description": "問題編號"},
+                            "labels": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": [label.value for label in GitHubLabels],
+                                },
+                                "description": "要新增的標籤清單，必須是有效的 GitHub 標籤值",
+                            },
+                        },
+                        "required": ["issue_id", "labels"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "GithubPlugin-create_plan",
+                    "description": "建立解決問題的計劃。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "issue_id": {"type": "string", "description": "問題編號"},
+                            "plan": {
+                                "type": "object",
+                                "properties": {
+                                    "tasks": {
+                                        "type": "array",
+                                        "items": {"type": "string"},
+                                        "description": "任務清單",
+                                    }
+                                },
+                                "required": ["tasks"],
+                            },
+                        },
+                        "required": ["issue_id", "plan"],
+                    },
+                },
+            },
+        ],
+    )
+    python_agent = AzureAIAgent(
+        client=client,
+        definition=python_agent_definition,
         plugins=[GithubPlugin()],
     )
-    dotnet_agent = ChatCompletionAgent(
+
+    # Create dotnet agent in Azure AI Agent service
+    dotnet_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="DotNetAgent",
         description="處理 .NET 相關問題的代理程式",
         instructions="您是處理 .NET 相關 GitHub 問題的代理程式。",
-        service=AzureChatCompletion(),
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "GithubPlugin-add_labels",
+                    "description": "為 GitHub 問題新增標籤。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "issue_id": {"type": "string", "description": "問題編號"},
+                            "labels": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": [label.value for label in GitHubLabels],
+                                },
+                                "description": "要新增的標籤清單，必須是有效的 GitHub 標籤值",
+                            },
+                        },
+                        "required": ["issue_id", "labels"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "GithubPlugin-create_plan",
+                    "description": "建立解決問題的計劃。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "issue_id": {"type": "string", "description": "問題編號"},
+                            "plan": {
+                                "type": "object",
+                                "properties": {
+                                    "tasks": {
+                                        "type": "array",
+                                        "items": {"type": "string"},
+                                        "description": "任務清單",
+                                    }
+                                },
+                                "required": ["tasks"],
+                            },
+                        },
+                        "required": ["issue_id", "plan"],
+                    },
+                },
+            },
+        ],
+    )
+    dotnet_agent = AzureAIAgent(
+        client=client,
+        definition=dotnet_agent_definition,
         plugins=[GithubPlugin()],
     )
 
@@ -142,36 +274,48 @@ GithubIssueSample = GithubIssue(
 # 然而，Pydantic 模型類型的物件無法直接由 `json.dump()` 序列化。
 # 因此，我們需要自訂轉換。
 def custom_input_transform(input_message: GithubIssue) -> ChatMessageContent:
-    return ChatMessageContent(role=AuthorRole.USER, content=input_message.model_dump_json())
+    return ChatMessageContent(
+        role=AuthorRole.USER, content=input_message.model_dump_json()
+    )
 
 
 async def main():
     """執行代理程式的主要函數。"""
-    # 1. 建立具有多個代理程式和自訂輸入轉換的移交編排。
-    # 要啟用結構化輸入，您必須指定輸入轉換和編排的泛型類型，
-    agents, handoffs = get_agents()
-    handoff_orchestration = HandoffOrchestration[GithubIssue, ChatMessageContent](
-        members=agents,
-        handoffs=handoffs,
-        input_transform=custom_input_transform,
-    )
+    async with (
+        DefaultAzureCredential() as creds,
+        AzureAIAgent.create_client(credential=creds) as client,
+    ):
+        # 1. 建立具有多個代理程式和自訂輸入轉換的移交編排。
+        # 要啟用結構化輸入，您必須指定輸入轉換和編排的泛型類型，
+        agents, handoffs = await get_agents(client)
+        handoff_orchestration = HandoffOrchestration[GithubIssue, ChatMessageContent](
+            members=agents,
+            handoffs=handoffs,
+            input_transform=custom_input_transform,
+        )
 
-    # 2. 建立運行時並啟動
-    runtime = InProcessRuntime()
-    runtime.start()
+        # 2. 建立運行時並啟動
+        runtime = InProcessRuntime()
+        runtime.start()
 
-    # 3. 使用任務和運行時呼叫編排
-    orchestration_result = await handoff_orchestration.invoke(
-        task=GithubIssueSample,
-        runtime=runtime,
-    )
+        try:
+            # 3. 使用任務和運行時呼叫編排
+            orchestration_result = await handoff_orchestration.invoke(
+                task=GithubIssueSample,
+                runtime=runtime,
+            )
 
-    # 4. 等待結果
-    value = await orchestration_result.get(timeout=100)
-    print(value)
+            # 4. 等待結果
+            value = await orchestration_result.get(timeout=100)
+            print(value)
 
-    # 5. 閒置時停止運行時
-    await runtime.stop_when_idle()
+        finally:
+            # 5. 閒置時停止運行時
+            await runtime.stop_when_idle()
+
+            # 6. Cleanup: delete the agents
+            for agent in agents:
+                await client.agents.delete_agent(agent.id)
 
     """
     範例輸出：
