@@ -6,12 +6,16 @@ import os
 from azure.ai.agents.models import CodeInterpreterTool, FilePurpose
 from azure.identity.aio import DefaultAzureCredential
 
-from semantic_kernel.agents import AzureAIAgent, AzureAIAgentSettings, AzureAIAgentThread
+from semantic_kernel.agents import (
+    AzureAIAgent,
+    AzureAIAgentSettings,
+    AzureAIAgentThread,
+)
 from semantic_kernel.contents import AuthorRole
 
 """
-The following sample demonstrates how to create a simple, Azure AI agent that
-uses the code interpreter tool to answer a coding question.
+以下範例示範如何建立使用程式碼解讀工具的簡易 Azure AI Agent，
+並回答程式問題。
 """
 
 TASK = "What's the total sum of all sales for all segments using Python?"
@@ -22,15 +26,19 @@ async def main() -> None:
         DefaultAzureCredential() as creds,
         AzureAIAgent.create_client(credential=creds) as client,
     ):
-        # 1. Create an agent with a code interpreter on the Azure AI agent service
+        # 1. 在 Azure AI Agent 服務建立包含程式碼解讀工具的 agent
         csv_file_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "resources", "sales.csv"
+            os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+            "resources",
+            "sales.csv",
         )
 
-        # 2. Upload the CSV file to the Azure AI agent service
-        file = await client.agents.files.upload_and_poll(file_path=csv_file_path, purpose=FilePurpose.AGENTS)
+        # 2. 上傳 CSV 檔案到 Azure AI Agent 服務
+        file = await client.agents.files.upload_and_poll(
+            file_path=csv_file_path, purpose=FilePurpose.AGENTS
+        )
 
-        # 3. Create a code interpreter tool referencing the uploaded file
+        # 3. 建立參考上傳檔案的程式碼解讀工具
         code_interpreter = CodeInterpreterTool(file_ids=[file.id])
         agent_definition = await client.agents.create_agent(
             model=AzureAIAgentSettings().model_deployment_name,
@@ -38,56 +46,53 @@ async def main() -> None:
             tool_resources=code_interpreter.resources,
         )
 
-        # 4. Create a Semantic Kernel agent for the Azure AI agent
+        # 4. 建立 Semantic Kernel 對應的 Azure AI Agent
         agent = AzureAIAgent(
             client=client,
             definition=agent_definition,
         )
 
-        # 5. Create a thread for the agent
-        # If no thread is provided, a new thread will be
-        # created and returned with the initial response
+        # 5. 建立 agent 對話執行緒
+        # 若未提供執行緒，系統將建立並回傳含初始回應的新執行緒
         thread: AzureAIAgentThread | None = None
 
         try:
             print(f"# User: '{TASK}'")
-            # 6. Invoke the agent for the specified thread for response
+            # 6. 以指定執行緒呼叫 agent 取得回應
             async for response in agent.invoke(messages=TASK, thread=thread):
                 if response.role != AuthorRole.TOOL:
                     print(f"# Agent: {response}")
                 thread = response.thread
         finally:
-            # 7. Cleanup: Delete the thread, agent, and file
+            # 7. 清理資源：刪除執行緒、agent 及上傳檔案
             await thread.delete() if thread else None
             await client.agents.delete_agent(agent.id)
             await client.agents.files.delete(file.id)
 
         """
-        Sample Output:
+        範例輸出：
         # User: 'Give me the code to calculate the total sales for all segments.'
 
-        # AuthorRole.ASSISTANT: Let me first load the uploaded file to understand its contents before providing 
-        tailored code.
+        # AuthorRole.ASSISTANT: 先載入檔案然後計算 total_sales...
 
         ```python
         import pandas as pd
 
-        # Load the uploaded file
+        # 載入上傳的檔案
         file_path = '/mnt/data/assistant-GBaUAF6AKds3sfdfSpxJZG'
-        data = pd.read_excel(file_path) # Attempting to load as an Excel file initially
+        data = pd.read_excel(file_path) # 嘗試以 Excel 檔案格式載入
 
-        # Display the first few rows and understand its structure
+        # 顯示前幾筆資料以了解其結構
         data.head(), data.info()
         ```
 
-        # AuthorRole.ASSISTANT: The file format couldn't be automatically determined. Let me attempt to load it as a 
-        CSV or other type.
+        # AuthorRole.ASSISTANT: 檔案格式無法自動判斷。讓我嘗試將其載入為 CSV 或其他類型。
 
         ```python
-        # Attempt to load the file as a CSV
+        # 嘗試將檔案載入為 CSV 格式
         data = pd.read_csv(file_path)
 
-        # Display the first few rows of the dataset and its information
+        # 顯示資料集的前幾筆資料及其資訊
         data.head(), data.info()
         ```
 
@@ -112,20 +117,20 @@ async def main() -> None:
         13  Year          700 non-null    int64  
         dtypes: float64(7), int64(2), object(5)
         memory usage: 76.7+ KB
-        The dataset has been successfully loaded and contains information regarding sales, profits, and related metrics 
-        for various segments. To calculate the total sales across all segments, we can use the "Sales" column.
+        資料集已成功載入，並包含有關各個區段的銷售、利潤及相關指標的資訊。
+        若要計算所有區段的總銷售額，我們可以使用「Sales」欄位。
 
-        Here's the code to calculate the total sales:
+        以下是計算總銷售額的程式碼：
 
         ```python
-        # Calculate the total sales for all segments
+        # 計算所有區段的總銷售額
         total_sales = data['Sales'].sum()
 
         total_sales
         ```
 
-        # AuthorRole.ASSISTANT: The total sales for all segments amount to approximately **118,726,350.29**. Let me 
-        know if you need additional analysis or code for manipulating this data!
+        # AuthorRole.ASSISTANT: 所有區段的總銷售額約為 **118,726,350.29**。
+        如需其他分析或操作此資料的程式碼，請告訴我！
         """
 
 

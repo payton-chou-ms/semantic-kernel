@@ -11,12 +11,12 @@ from semantic_kernel.agents import AzureAIAgent, AzureAIAgentSettings, AzureAIAg
 from semantic_kernel.contents import ChatMessageContent, FunctionCallContent, FunctionResultContent
 
 """
-The following sample demonstrates how to create a simple, Azure AI agent that
-uses OpenAPI tools to answer user questions.
+以下範例示範如何建立使用 OpenAPI 工具的簡易 Azure AI Agent，
+並回答使用者問題。
 """
 
 
-# Simulate a conversation with the agent
+# 模擬與 agent 的對話
 USER_INPUTS = [
     "What is the name and population of the country that uses currency with abbreviation THB",
     "What is the current weather in the capital city of the country?",
@@ -38,7 +38,7 @@ async def main() -> None:
         DefaultAzureCredential() as creds,
         AzureAIAgent.create_client(credential=creds) as client,
     ):
-        # 1. Read in the OpenAPI spec files
+        # 1. 載入 OpenAPI 規格檔
         openapi_spec_file_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
             "resources",
@@ -48,8 +48,9 @@ async def main() -> None:
         with open(os.path.join(openapi_spec_file_path, "countries.json")) as countries_file:
             countries_openapi_spec = json.loads(countries_file.read())
 
-        # 2. Create OpenAPI tools
-        # Note that connection or managed identity auth setup requires additional setup in Azure
+        # 2. 建立 OpenAPI 工具
+        # 注意：若使用連線或託管身分識別 (Managed Identity)，
+        #       需在 Azure 端額外設定授權
         auth = OpenApiAnonymousAuthDetails()
         openapi_weather = OpenApiTool(
             name="get_weather",
@@ -64,37 +65,36 @@ async def main() -> None:
             auth=auth,
         )
 
-        # 3. Create an agent on the Azure AI agent service with the OpenAPI tools
+        # 3. 在 Azure AI Agent 服務建立包含 OpenAPI 工具的 agent
         agent_definition = await client.agents.create_agent(
             model=AzureAIAgentSettings().model_deployment_name,
             tools=openapi_weather.definitions + openapi_countries.definitions,
         )
 
-        # 4. Create a Semantic Kernel agent for the Azure AI agent
+        # 4. 建立 Semantic Kernel 對應的 Azure AI Agent
         agent = AzureAIAgent(
             client=client,
             definition=agent_definition,
         )
 
-        # 5. Create a thread for the agent
-        # If no thread is provided, a new thread will be
-        # created and returned with the initial response
+        # 5. 建立 agent 對話執行緒
+        # 若未提供執行緒，系統將建立並回傳含初始回應的新執行緒
         thread: AzureAIAgentThread = None
 
         try:
             for user_input in USER_INPUTS:
                 print(f"# User: '{user_input}'")
-                # 7. Invoke the agent for the specified thread for response
+                # 7. 以指定執行緒呼叫 agent 取得回應
                 async for response in agent.invoke(messages=user_input, thread=thread):
                     print(f"# Agent: {response}")
                     thread = response.thread
         finally:
-            # 8. Cleanup: Delete the thread and agent
+            # 8. 清理資源：刪除執行緒及 agent
             await client.agents.threads.delete(thread.id) if thread else None
             await client.agents.delete_agent(agent.id)
 
         """
-        Sample Output:
+        範例輸出：
         # User: 'What is the name and population of the country that uses currency with abbreviation THB'
         # Agent: It seems I encountered an issue while trying to retrieve data about the country that uses the ...
         

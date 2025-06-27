@@ -13,8 +13,8 @@ The following sample demonstrates how to create an OpenAI assistant using either
 Azure OpenAI or OpenAI, a chat completion agent and have them participate in a
 group chat to work towards the user's requirement.
 
-Note: This sample use the `AgentGroupChat` feature of Semantic Kernel, which is
-no longer maintained. For a replacement, consider using the `GroupChatOrchestration`.
+注意：此範例使用 Semantic Kernel 的 `AgentGroupChat`，
+目前已不再維護。建議改用 `GroupChatOrchestration`。
 
 Read more about the `GroupChatOrchestration` here:
 https://learn.microsoft.com/semantic-kernel/frameworks/agent/agent-orchestration/group-chat?pivots=programming-language-python
@@ -60,53 +60,55 @@ async def main():
         DefaultAzureCredential() as creds,
         AzureAIAgent.create_client(credential=creds) as client,
     ):
-        # 1. Create the reviewer agent on the Azure AI agent service
+        # 1. 在 Azure AI Agent 服務建立審核者 agent
         reviewer_agent_definition = await client.agents.create_agent(
             model=ai_agent_settings.model_deployment_name,
             name=REVIEWER_NAME,
             instructions=REVIEWER_INSTRUCTIONS,
         )
 
-        # 2. Create a Semantic Kernel agent for the reviewer Azure AI agent
+        # 2. 建立對應的 Semantic Kernel 審核者 agent
         agent_reviewer = AzureAIAgent(
             client=client,
             definition=reviewer_agent_definition,
         )
 
-        # 3. Create the copy writer agent on the Azure AI agent service
+        # 3. 在 Azure AI Agent 服務建立撰寫者 agent
         copy_writer_agent_definition = await client.agents.create_agent(
             model=ai_agent_settings.model_deployment_name,
             name=COPYWRITER_NAME,
             instructions=COPYWRITER_INSTRUCTIONS,
         )
 
-        # 4. Create a Semantic Kernel agent for the copy writer Azure AI agent
+        # 4. 建立對應的 Semantic Kernel 撰寫者 agent
         agent_writer = AzureAIAgent(
             client=client,
             definition=copy_writer_agent_definition,
         )
 
-        # 5. Place the agents in a group chat with a custom termination strategy
+        # 5. 將 agents 加入群組聊天並設定自訂終止策略
         chat = AgentGroupChat(
             agents=[agent_writer, agent_reviewer],
-            termination_strategy=ApprovalTerminationStrategy(agents=[agent_reviewer], maximum_iterations=10),
+            termination_strategy=ApprovalTerminationStrategy(
+                agents=[agent_reviewer], maximum_iterations=10
+            ),
         )
 
         try:
-            # 6. Add the task as a message to the group chat
+            # 6. 將任務加入群組聊天
             await chat.add_chat_message(message=TASK)
             print(f"# {AuthorRole.USER}: '{TASK}'")
-            # 7. Invoke the chat
+            # 7. 呼叫群組聊天
             async for content in chat.invoke():
                 print(f"# {content.role} - {content.name or '*'}: '{content.content}'")
         finally:
-            # 8. Cleanup: Delete the agents
+            # 8. 清理資源：刪除 agents
             await chat.reset()
             await client.agents.delete_agent(agent_reviewer.id)
             await client.agents.delete_agent(agent_writer.id)
 
         """
-        Sample Output:
+        範例輸出：
         # AuthorRole.USER: 'a slogan for a new line of electric cars.'
         # AuthorRole.ASSISTANT - CopyWriter: '"Charge Ahead: Drive the Future."'
         # AuthorRole.ASSISTANT - ArtDirector: 'This slogan has a nice ring to it and captures the ...'
