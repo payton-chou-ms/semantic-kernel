@@ -16,6 +16,9 @@ from semantic_kernel.contents import (
 Azure AI Agent。本範例假設您已先前建立好 agent（透過程式、Portal 或 CLI）。
 """
 
+# 新增 agent_id 變數
+# agent_id = "<your-agent-id>"
+agent_id = "asst_a6eaEyTgtC6e4hjEixEiNjuI"
 
 # 模擬與 agent 的對話
 USER_INPUTS = [
@@ -41,7 +44,7 @@ async def main() -> None:
         # 1. 根據 agent_id 取得 agent 定義
         # 將 "<your-agent-id>" 換成您要使用的實際 agent ID
         agent_definition = await client.agents.get_agent(
-            agent_id="<your-agent-id>",
+            agent_id=agent_id,
         )
 
         # 2. 建立 Semantic Kernel 對應的 Azure AI Agent
