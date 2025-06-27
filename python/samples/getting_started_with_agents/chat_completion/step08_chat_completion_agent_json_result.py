@@ -1,13 +1,18 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 import asyncio
+import os
+from dotenv import load_dotenv
 
 from pydantic import BaseModel, ValidationError
 
 from semantic_kernel import Kernel
 from semantic_kernel.agents import AgentGroupChat, ChatCompletionAgent
 from semantic_kernel.agents.strategies import TerminationStrategy
-from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion, OpenAIChatPromptExecutionSettings
+from semantic_kernel.connectors.ai.open_ai import (
+    AzureChatCompletion,
+    OpenAIChatPromptExecutionSettings,
+)
 from semantic_kernel.functions import KernelArguments
 
 """
@@ -25,11 +30,18 @@ https://learn.microsoft.com/semantic-kernel/frameworks/agent/agent-orchestration
 Here is a migration guide from `AgentGroupChat` to `GroupChatOrchestration`:
 https://learn.microsoft.com/semantic-kernel/support/migration/group-chat-orchestration-migration-guide?pivots=programming-language-python
 """
+# Load environment variables from .env file
+load_dotenv()
+
+# Constants
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 
 
 def _create_kernel_with_chat_completion(service_id: str) -> Kernel:
     kernel = Kernel()
-    kernel.add_service(OpenAIChatCompletion(service_id=service_id))
+    kernel.add_service(
+        AzureChatCompletion(endpoint=MY_AZURE_OPENAI_ENDPOINT, service_id=service_id)
+    )
     return kernel
 
 
@@ -85,7 +97,9 @@ async def main():
     )
 
     # 4. Create the group chat with the custom termination strategy
-    group_chat = AgentGroupChat(termination_strategy=ThresholdTerminationStrategy(maximum_iterations=10))
+    group_chat = AgentGroupChat(
+        termination_strategy=ThresholdTerminationStrategy(maximum_iterations=10)
+    )
 
     for user_input in USER_INPUTS:
         # 5. Add the user input to the chat history
