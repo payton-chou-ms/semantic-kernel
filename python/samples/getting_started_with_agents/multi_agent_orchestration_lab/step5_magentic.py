@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 import asyncio
+import os
+from dotenv import load_dotenv
 
 from azure.identity.aio import DefaultAzureCredential
 
@@ -31,6 +33,9 @@ https://www.microsoft.com/en-us/research/articles/magentic-one-a-generalist-mult
 
 Magentic 管理員需要支援結構化輸出的聊天完成模型。
 """
+# Load environment variables from .env file
+load_dotenv()
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 
 
 class ResearchPlugin:
@@ -164,7 +169,7 @@ async def main():
             members=agents_list,
             manager=StandardMagenticManager(
                 chat_completion_service=AzureChatCompletion(
-                    endpoint="https://foundypbxy.openai.azure.com/openai/deployments/o4-mini/chat/completions?api-version=2025-01-01-preview",
+                    endpoint=MY_AZURE_OPENAI_ENDPOINT,
                 )
             ),
             agent_response_callback=agent_response_callback,
