@@ -2,34 +2,51 @@
 
 import asyncio
 
-from semantic_kernel.agents import Agent, ChatCompletionAgent, ConcurrentOrchestration
+from azure.identity.aio import DefaultAzureCredential
+
+from semantic_kernel.agents import (
+    Agent,
+    AzureAIAgent,
+    AzureAIAgentSettings,
+    ConcurrentOrchestration,
+)
 from semantic_kernel.agents.runtime import InProcessRuntime
-from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 
 """
 The following sample demonstrates how to create a concurrent orchestration for
-executing multiple agents on the same task in parallel.
+executing multiple Azure AI agents on the same task in parallel.
 
 This sample demonstrates the basic steps of creating and starting a runtime, creating
-a concurrent orchestration with multiple agents, invoking the orchestration, and finally
-waiting for the results.
+Azure AI agents using the Azure AI Agent service, creating a concurrent orchestration 
+with these agents, invoking the orchestration, and finally waiting for the results.
 """
 
 
-def get_agents() -> list[Agent]:
-    """Return a list of agents that will participate in the concurrent orchestration.
+async def get_agents(client) -> list[Agent]:
+    """Return a list of Azure AI agents that will participate in the concurrent orchestration.
 
     Feel free to add or remove agents.
     """
-    physics_agent = ChatCompletionAgent(
+    # Create physics expert agent in Azure AI Agent service
+    physics_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="PhysicsExpert",
         instructions="You are an expert in physics. You answer questions from a physics perspective.",
-        service=AzureChatCompletion(),
     )
-    chemistry_agent = ChatCompletionAgent(
+    physics_agent = AzureAIAgent(
+        client=client,
+        definition=physics_agent_definition,
+    )
+
+    # Create chemistry expert agent in Azure AI Agent service
+    chemistry_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="ChemistryExpert",
         instructions="You are an expert in chemistry. You answer questions from a chemistry perspective.",
-        service=AzureChatCompletion(),
+    )
+    chemistry_agent = AzureAIAgent(
+        client=client,
+        definition=chemistry_agent_definition,
     )
 
     return [physics_agent, chemistry_agent]
@@ -37,29 +54,41 @@ def get_agents() -> list[Agent]:
 
 async def main():
     """Main function to run the agents."""
-    # 1. Create a concurrent orchestration with multiple agents
-    agents = get_agents()
-    concurrent_orchestration = ConcurrentOrchestration(members=agents)
+    async with (
+        DefaultAzureCredential() as creds,
+        AzureAIAgent.create_client(credential=creds) as client,
+    ):
+        # 1. Create Azure AI agents using the Azure AI Agent service
+        agents = await get_agents(client)
 
-    # 2. Create a runtime and start it
-    runtime = InProcessRuntime()
-    runtime.start()
+        # 2. Create a concurrent orchestration with multiple agents
+        concurrent_orchestration = ConcurrentOrchestration(members=agents)
 
-    # 3. Invoke the orchestration with a task and the runtime
-    orchestration_result = await concurrent_orchestration.invoke(
-        task="What is temperature?",
-        runtime=runtime,
-    )
+        # 3. Create a runtime and start it
+        runtime = InProcessRuntime()
+        runtime.start()
 
-    # 4. Wait for the results
-    # Note: the order of the results is not guaranteed to be the same
-    # as the order of the agents in the orchestration.
-    value = await orchestration_result.get(timeout=20)
-    for item in value:
-        print(f"# {item.name}: {item.content}")
+        try:
+            # 4. Invoke the orchestration with a task and the runtime
+            orchestration_result = await concurrent_orchestration.invoke(
+                task="What is temperature?",
+                runtime=runtime,
+            )
 
-    # 5. Stop the runtime after the invocation is complete
-    await runtime.stop_when_idle()
+            # 5. Wait for the results
+            # Note: the order of the results is not guaranteed to be the same
+            # as the order of the agents in the orchestration.
+            value = await orchestration_result.get(timeout=20)
+            for item in value:
+                print(f"# {item.name}: {item.content}")
+
+        finally:
+            # 6. Stop the runtime after the invocation is complete
+            await runtime.stop_when_idle()
+
+            # 7. Cleanup: delete the agents
+            for agent in agents:
+                await client.agents.delete_agent(agent.id)
 
     """
     Sample output:
