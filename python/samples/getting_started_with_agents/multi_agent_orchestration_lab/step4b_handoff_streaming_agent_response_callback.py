@@ -2,9 +2,16 @@
 
 import asyncio
 
-from semantic_kernel.agents import Agent, ChatCompletionAgent, HandoffOrchestration, OrchestrationHandoffs
+from azure.identity.aio import DefaultAzureCredential
+
+from semantic_kernel.agents import (
+    Agent,
+    AzureAIAgent,
+    AzureAIAgentSettings,
+    HandoffOrchestration,
+    OrchestrationHandoffs,
+)
 from semantic_kernel.agents.runtime import InProcessRuntime
-from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.contents import (
     AuthorRole,
     ChatMessageContent,
@@ -35,113 +42,189 @@ from semantic_kernel.functions import kernel_function
 class OrderStatusPlugin:
     @kernel_function
     def check_order_status(self, order_id: str) -> str:
-        """Check the status of an order."""
-        # Simulate checking the order status
-        return f"Order {order_id} is shipped and will arrive in 2-3 days."
+        """檢查訂單狀態。"""
+        # 模擬檢查訂單狀態
+        return f"訂單 {order_id} 已出貨，將在2-3天內到達。"
 
 
 class OrderRefundPlugin:
     @kernel_function
     def process_refund(self, order_id: str, reason: str) -> str:
-        """Process a refund for an order."""
-        # Simulate processing a refund
-        print(f"Processing refund for order {order_id} due to: {reason}")
-        return f"Refund for order {order_id} has been processed successfully."
+        """處理訂單退款。"""
+        # 模擬處理退款
+        print(f"正在處理訂單 {order_id} 的退款，原因：{reason}")
+        return f"訂單 {order_id} 的退款已成功處理。"
 
 
 class OrderReturnPlugin:
     @kernel_function
     def process_return(self, order_id: str, reason: str) -> str:
-        """Process a return for an order."""
-        # Simulate processing a return
-        print(f"Processing return for order {order_id} due to: {reason}")
-        return f"Return for order {order_id} has been processed successfully."
+        """處理訂單退貨。"""
+        # 模擬處理退貨
+        print(f"正在處理訂單 {order_id} 的退貨，原因：{reason}")
+        return f"訂單 {order_id} 的退貨已成功處理。"
 
 
-def get_agents() -> tuple[list[Agent], OrchestrationHandoffs]:
-    """Return a list of agents that will participate in the Handoff orchestration and the handoff relationships.
+async def get_agents(client) -> tuple[list[Agent], OrchestrationHandoffs]:
+    """回傳將參與移交編排的代理程式清單和移交關係。
 
-    Feel free to add or remove agents and handoff connections.
+    您可以自由新增或移除代理程式和移交連線。
     """
-    support_agent = ChatCompletionAgent(
+    # Create support agent in Azure AI Agent service
+    support_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="TriageAgent",
-        description="A customer support agent that triages issues.",
-        instructions="Handle customer requests.",
-        service=AzureChatCompletion(),
+        description="分流問題的客戶支援代理程式。",
+        instructions="分流問題的客戶支援代理程式。處理客戶請求。",
+    )
+    support_agent = AzureAIAgent(
+        client=client,
+        definition=support_agent_definition,
     )
 
-    refund_agent = ChatCompletionAgent(
+    # Create refund agent in Azure AI Agent service
+    refund_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="RefundAgent",
-        description="A customer support agent that handles refunds.",
-        instructions="Handle refund requests.",
-        service=AzureChatCompletion(),
+        description="處理退款的客戶支援代理程式。",
+        instructions="處理退款的客戶支援代理程式。處理退款請求。",
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "OrderRefundPlugin-process_refund",
+                    "description": "處理訂單退款。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "order_id": {"type": "string", "description": "訂單編號"},
+                            "reason": {"type": "string", "description": "退款原因"},
+                        },
+                        "required": ["order_id", "reason"],
+                    },
+                },
+            }
+        ],
+    )
+    refund_agent = AzureAIAgent(
+        client=client,
+        definition=refund_agent_definition,
         plugins=[OrderRefundPlugin()],
     )
 
-    order_status_agent = ChatCompletionAgent(
+    # Create order status agent in Azure AI Agent service
+    order_status_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="OrderStatusAgent",
-        description="A customer support agent that checks order status.",
-        instructions="Handle order status requests.",
-        service=AzureChatCompletion(),
+        description="檢查訂單狀態的客戶支援代理程式。",
+        instructions="檢查訂單狀態的客戶支援代理程式。處理訂單狀態請求。",
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "OrderStatusPlugin-check_order_status",
+                    "description": "檢查訂單狀態。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "order_id": {"type": "string", "description": "訂單編號"}
+                        },
+                        "required": ["order_id"],
+                    },
+                },
+            }
+        ],
+    )
+    order_status_agent = AzureAIAgent(
+        client=client,
+        definition=order_status_agent_definition,
         plugins=[OrderStatusPlugin()],
     )
 
-    order_return_agent = ChatCompletionAgent(
+    # Create order return agent in Azure AI Agent service
+    order_return_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="OrderReturnAgent",
-        description="A customer support agent that handles order returns.",
-        instructions="Handle order return requests.",
-        service=AzureChatCompletion(),
+        description="處理訂單退貨的客戶支援代理程式。",
+        instructions="處理訂單退貨的客戶支援代理程式。處理訂單退貨請求。",
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "OrderReturnPlugin-process_return",
+                    "description": "處理訂單退貨。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "order_id": {"type": "string", "description": "訂單編號"},
+                            "reason": {"type": "string", "description": "退貨原因"},
+                        },
+                        "required": ["order_id", "reason"],
+                    },
+                },
+            }
+        ],
+    )
+    order_return_agent = AzureAIAgent(
+        client=client,
+        definition=order_return_agent_definition,
         plugins=[OrderReturnPlugin()],
     )
 
-    # Define the handoff relationships between agents
+    # 定義代理程式之間的移交關係
     handoffs = (
         OrchestrationHandoffs()
         .add_many(
             source_agent=support_agent.name,
             target_agents={
-                refund_agent.name: "Transfer to this agent if the issue is refund related",
-                order_status_agent.name: "Transfer to this agent if the issue is order status related",
-                order_return_agent.name: "Transfer to this agent if the issue is order return related",
+                refund_agent.name: "如果問題與退款相關，轉移到此代理程式",
+                order_status_agent.name: "如果問題與訂單狀態相關，轉移到此代理程式",
+                order_return_agent.name: "如果問題與訂單退貨相關，轉移到此代理程式",
             },
         )
         .add(
             source_agent=refund_agent.name,
             target_agent=support_agent.name,
-            description="Transfer to this agent if the issue is not refund related",
+            description="如果問題與退款無關，轉移到此代理程式",
         )
         .add(
             source_agent=order_status_agent.name,
             target_agent=support_agent.name,
-            description="Transfer to this agent if the issue is not order status related",
+            description="如果問題與訂單狀態無關，轉移到此代理程式",
         )
         .add(
             source_agent=order_return_agent.name,
             target_agent=support_agent.name,
-            description="Transfer to this agent if the issue is not order return related",
+            description="如果問題與訂單退貨無關，轉移到此代理程式",
         )
     )
 
-    return [support_agent, refund_agent, order_status_agent, order_return_agent], handoffs
+    return [
+        support_agent,
+        refund_agent,
+        order_status_agent,
+        order_return_agent,
+    ], handoffs
 
 
 # Flag to indicate if a new message is being received
 is_new_message = True
 
 
-def streaming_agent_response_callback(message: StreamingChatMessageContent, is_final: bool) -> None:
-    """Observer function to print the messages from the agents.
+def streaming_agent_response_callback(
+    message: StreamingChatMessageContent, is_final: bool
+) -> None:
+    """觀察函數，用於列印來自代理程式的訊息。
 
-    Please note that this function is called whenever the agent generates a response,
-    including the internal processing messages (such as tool calls) that are not visible
-    to other agents in the orchestration.
+    請注意，此函數會在代理程式產生回應時被呼叫，
+    包括編排中其他代理程式不可見的內部處理訊息（如工具呼叫）。
 
-    In streaming mode, the FunctionCallContent and FunctionResultContent are provided as a
-    complete message.
+    在串流模式中，FunctionCallContent 和 FunctionResultContent 會以
+    完整訊息的形式提供。
 
-    Args:
-        message (StreamingChatMessageContent): The streaming message content from the agent.
-        is_final (bool): Indicates if this is the final part of the message.
+    參數:
+        message (StreamingChatMessageContent): 來自代理程式的串流訊息內容。
+        is_final (bool): 指示這是否為訊息的最終部分。
     """
     global is_new_message
     if is_new_message:
@@ -151,9 +234,11 @@ def streaming_agent_response_callback(message: StreamingChatMessageContent, is_f
 
     for item in message.items:
         if isinstance(item, FunctionCallContent):
-            print(f"Calling '{item.name}' with arguments '{item.arguments}'", end="", flush=True)
+            print(
+                f"正在呼叫 '{item.name}'，參數為 '{item.arguments}'", end="", flush=True
+            )
         if isinstance(item, FunctionResultContent):
-            print(f"Result from '{item.name}' is '{item.result}'", end="", flush=True)
+            print(f"來自 '{item.name}' 的結果為 '{item.result}'", end="", flush=True)
 
     if is_final:
         print()
@@ -168,31 +253,41 @@ def human_response_function() -> ChatMessageContent:
 
 async def main():
     """執行代理程式的主要函數。"""
-    # 1. 建立具有多個代理程式的移交編排
-    agents, handoffs = get_agents()
-    handoff_orchestration = HandoffOrchestration(
-        members=agents,
-        handoffs=handoffs,
-        streaming_agent_response_callback=streaming_agent_response_callback,
-        human_response_function=human_response_function,
-    )
+    async with (
+        DefaultAzureCredential() as creds,
+        AzureAIAgent.create_client(credential=creds) as client,
+    ):
+        # 1. 建立具有多個代理程式的移交編排
+        agents, handoffs = await get_agents(client)
+        handoff_orchestration = HandoffOrchestration(
+            members=agents,
+            handoffs=handoffs,
+            streaming_agent_response_callback=streaming_agent_response_callback,
+            human_response_function=human_response_function,
+        )
 
-    # 2. 建立運行時並啟動
-    runtime = InProcessRuntime()
-    runtime.start()
+        # 2. 建立運行時並啟動
+        runtime = InProcessRuntime()
+        runtime.start()
 
-    # 3. 使用任務和運行時呼叫編排
-    orchestration_result = await handoff_orchestration.invoke(
-        task="問候尋求支援的客戶。",
-        runtime=runtime,
-    )
+        try:
+            # 3. 使用任務和運行時呼叫編排
+            orchestration_result = await handoff_orchestration.invoke(
+                task="問候尋求支援的客戶。",
+                runtime=runtime,
+            )
 
-    # 4. 等待結果
-    value = await orchestration_result.get()
-    print(value)
+            # 4. 等待結果
+            value = await orchestration_result.get()
+            print(value)
 
-    # 5. 呼叫完成後停止運行時
-    await runtime.stop_when_idle()
+        finally:
+            # 5. 呼叫完成後停止運行時
+            await runtime.stop_when_idle()
+
+            # 6. Cleanup: delete the agents
+            for agent in agents:
+                await client.agents.delete_agent(agent.id)
 
     """
     範例輸出：
