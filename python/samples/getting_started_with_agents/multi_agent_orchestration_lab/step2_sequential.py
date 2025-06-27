@@ -8,98 +8,95 @@ from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.contents import ChatMessageContent
 
 """
-The following sample demonstrates how to create a sequential orchestration for
-executing multiple agents in sequence, i.e. the output of one agent is the input
-to the next agent.
+以下範例示範如何建立順序編排，讓多個代理程式依序執行，
+即一個代理程式的輸出是下一個代理程式的輸入。
 
-This sample demonstrates the basic steps of creating and starting a runtime, creating
-a sequential orchestration, invoking the orchestration, and finally waiting for the
-results.
+此範例展示建立和啟動運行時、建立順序編排、呼叫編排，
+以及最終等待結果的基本步驟。
 """
 
 
 def get_agents() -> list[Agent]:
-    """Return a list of agents that will participate in the sequential orchestration.
+    """回傳將參與順序編排的代理程式清單。
 
-    Feel free to add or remove agents.
+    您可以自由新增或移除代理程式。
     """
     concept_extractor_agent = ChatCompletionAgent(
         name="ConceptExtractorAgent",
         instructions=(
-            "You are a marketing analyst. Given a product description, identify:\n"
-            "- Key features\n"
-            "- Target audience\n"
-            "- Unique selling points\n\n"
+            "您是行銷分析師。給定產品描述，請識別：\n"
+            "- 主要功能\n"
+            "- 目標受眾\n"
+            "- 獨特賣點\n\n"
         ),
         service=AzureChatCompletion(),
     )
     writer_agent = ChatCompletionAgent(
         name="WriterAgent",
         instructions=(
-            "You are a marketing copywriter. Given a block of text describing features, audience, and USPs, "
-            "compose a compelling marketing copy (like a newsletter section) that highlights these points. "
-            "Output should be short (around 150 words), output just the copy as a single text block."
+            "您是行銷文案撰寫者。給定描述功能、受眾和獨特賣點的文字區塊，"
+            "撰寫引人注目的行銷文案（如電子報段落），突出這些要點。"
+            "輸出應該簡短（約150字），僅輸出文案作為單一文字區塊。"
         ),
         service=AzureChatCompletion(),
     )
     format_proof_agent = ChatCompletionAgent(
         name="FormatProofAgent",
         instructions=(
-            "You are an editor. Given the draft copy, correct grammar, improve clarity, ensure consistent tone, "
-            "give format and make it polished. Output the final improved copy as a single text block."
+            "您是編輯。給定草稿文案，請更正語法、改善清晰度、確保一致的語調，"
+            "進行格式化並使其精練。將最終改善的文案輸出為單一文字區塊。"
         ),
         service=AzureChatCompletion(),
     )
 
-    # The order of the agents in the list will be the order in which they are executed
+    # 清單中代理程式的順序將是它們執行的順序
     return [concept_extractor_agent, writer_agent, format_proof_agent]
 
 
 def agent_response_callback(message: ChatMessageContent) -> None:
-    """Observer function to print the messages from the agents."""
+    """觀察者函數，用於列印代理程式的訊息。"""
     print(f"# {message.name}\n{message.content}")
 
 
 async def main():
-    """Main function to run the agents."""
-    # 1. Create a sequential orchestration with multiple agents and an agent
-    #    response callback to observe the output from each agent.
+    """執行代理程式的主要函數。"""
+    # 1. 建立具有多個代理程式和代理程式回應回調的順序編排，
+    #    以觀察每個代理程式的輸出。
     agents = get_agents()
     sequential_orchestration = SequentialOrchestration(
         members=agents,
         agent_response_callback=agent_response_callback,
     )
 
-    # 2. Create a runtime and start it
+    # 2. 建立運行時並啟動
     runtime = InProcessRuntime()
     runtime.start()
 
-    # 3. Invoke the orchestration with a task and the runtime
+    # 3. 使用任務和運行時呼叫編排
     orchestration_result = await sequential_orchestration.invoke(
-        task="An eco-friendly stainless steel water bottle that keeps drinks cold for 24 hours",
+        task="一個環保的不鏽鋼水瓶，可讓飲料保持24小時的冰冷",
         runtime=runtime,
     )
 
-    # 4. Wait for the results
+    # 4. 等待結果
     value = await orchestration_result.get(timeout=20)
     print(f"***** Final Result *****\n{value}")
 
-    # 5. Stop the runtime when idle
+    # 5. 空閒時停止運行時
     await runtime.stop_when_idle()
 
     """
-    Sample output:
+    範例輸出：
     # ConceptExtractorAgent
-    - Key Features:
-    - Made of eco-friendly stainless steel
-    - Keeps drinks cold for 24 hours
+    - 主要功能：
+    - 使用環保不鏽鋼製造
+    - 讓飲料保持24小時的冰冷
 
-    - Target Audience:
-    - Environmentally conscious consumers
-    - People who need a reliable way to keep their drinks cold for extended periods, such as athletes, travelers, and
-        outdoor enthusiasts
+    - 目標受眾：
+    - 有環保意識的消費者
+    - 需要可靠方式讓飲料長時間保持冰冷的人，如運動員、旅行者和戶外愛好者
 
-    - Unique Selling Points:
+    - 獨特賣點：
     - Environmentally sustainable material
     - Exceptionally long-lasting cold temperature retention (24 hours)
     # WriterAgent
