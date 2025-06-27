@@ -3,13 +3,19 @@
 import asyncio
 import sys
 
-from semantic_kernel.agents import Agent, ChatCompletionAgent, GroupChatOrchestration
-from semantic_kernel.agents.orchestration.group_chat import (
-    BooleanResult,
+from azure.identity.aio import DefaultAzureCredential
+
+from semantic_kernel.agents import (
+    Agent,
+    AzureAIAgent,
+    AzureAIAgentSettings,
+    GroupChatOrchestration,
     RoundRobinGroupChatManager,
 )
+from semantic_kernel.agents.orchestration.group_chat import (
+    BooleanResult,
+)
 from semantic_kernel.agents.runtime import InProcessRuntime
-from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.contents import AuthorRole, ChatHistory, ChatMessageContent
 
 if sys.version_info >= (3, 12):
@@ -35,25 +41,36 @@ else:
 """
 
 
-def get_agents() -> list[Agent]:
+async def get_agents(client) -> list[Agent]:
     """回傳將參與群組風格討論的代理程式清單。
 
     您可以自由新增或移除代理程式。
     """
-    writer = ChatCompletionAgent(
+    # Create writer agent in Azure AI Agent service
+    writer_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="Writer",
-        description="內容撰寫者。",
-        instructions=("您是優秀的內容撰寫者。您能基於回饋建立新內容和編輯內容。"),
-        service=AzureChatCompletion(),
+        instructions="您是一位優秀的內容作家。您會根據回饋建立新內容並編輯內容。",
+        description="內容作家。",
     )
-    reviewer = ChatCompletionAgent(
-        name="Reviewer",
-        description="內容審查員。",
-        instructions=("您是優秀的內容審查員。您審查內容並向撰寫者提供回饋。"),
-        service=AzureChatCompletion(),
+    writer = AzureAIAgent(
+        client=client,
+        definition=writer_agent_definition,
     )
 
-    # 清單中代理程式的順序將是輪詢管理員選擇它們的順序
+    # Create reviewer agent in Azure AI Agent service
+    reviewer_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
+        name="Reviewer",
+        instructions="您是一位優秀的內容審查者。您會審查內容並向作家提供回饋。",
+        description="內容審查者。",
+    )
+    reviewer = AzureAIAgent(
+        client=client,
+        definition=reviewer_agent_definition,
+    )
+
+    # 清單中代理程式的順序將是輪詢管理器選擇它們的順序
     return [writer, reviewer]
 
 
@@ -91,42 +108,54 @@ def agent_response_callback(message: ChatMessageContent) -> None:
     print(f"**{message.name}**\n{message.content}")
 
 
-async def human_response_function(chat_histoy: ChatHistory) -> ChatMessageContent:
+async def human_response_function(chat_history: ChatHistory) -> ChatMessageContent:
     """取得使用者輸入的函數。"""
-    user_input = input("使用者：")
+    user_input = await asyncio.to_thread(input, "使用者：")
     return ChatMessageContent(role=AuthorRole.USER, content=user_input)
 
 
 async def main():
     """執行代理程式的主要函數。"""
-    # 1. 建立具有輪詢管理員的群組聊天編排
-    agents = get_agents()
-    group_chat_orchestration = GroupChatOrchestration(
-        members=agents,
-        # max_rounds 是奇數，這樣撰寫者可以獲得最後一輪
-        manager=CustomRoundRobinGroupChatManager(
-            max_rounds=5,
-            human_response_function=human_response_function,
-        ),
-        agent_response_callback=agent_response_callback,
-    )
+    async with (
+        DefaultAzureCredential() as creds,
+        AzureAIAgent.create_client(credential=creds) as client,
+    ):
+        # 1. Create Azure AI agents using the Azure AI Agent service
+        agents = await get_agents(client)
 
-    # 2. 建立運行時並啟動
-    runtime = InProcessRuntime()
-    runtime.start()
+        # 2. 建立具有輪詢管理員的群組聊天編排
+        group_chat_orchestration = GroupChatOrchestration(
+            members=agents,
+            # max_rounds 是奇數，這樣撰寫者可以獲得最後一輪
+            manager=CustomRoundRobinGroupChatManager(
+                max_rounds=5,
+                human_response_function=human_response_function,
+            ),
+            agent_response_callback=agent_response_callback,
+        )
 
-    # 3. 使用任務和運行時呼叫編排
-    orchestration_result = await group_chat_orchestration.invoke(
-        task="為新的電動SUV建立一個口號，要求經濟實惠且駕駛樂趣。",
-        runtime=runtime,
-    )
+        # 3. 建立運行時並啟動
+        runtime = InProcessRuntime()
+        runtime.start()
 
-    # 4. 等待結果
-    value = await orchestration_result.get()
-    print(f"***** 結果 *****\n{value}")
+        try:
+            # 4. 使用任務和運行時呼叫編排
+            orchestration_result = await group_chat_orchestration.invoke(
+                task="為新的電動SUV建立一個口號，要求經濟實惠且駕駛樂趣。",
+                runtime=runtime,
+            )
 
-    # 5. 呼叫完成後停止運行時
-    await runtime.stop_when_idle()
+            # 5. 等待結果
+            value = await orchestration_result.get()
+            print(f"***** 結果 *****\n{value}")
+
+        finally:
+            # 6. 呼叫完成後停止運行時
+            await runtime.stop_when_idle()
+
+            # 7. Cleanup: delete the agents
+            for agent in agents:
+                await client.agents.delete_agent(agent.id)
 
     """
     **Writer**
