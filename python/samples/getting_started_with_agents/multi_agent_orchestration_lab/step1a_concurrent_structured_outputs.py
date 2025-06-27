@@ -11,17 +11,15 @@ from semantic_kernel.agents.runtime import InProcessRuntime
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 
 """
-The following sample demonstrates how to create a concurrent orchestration for
-executing multiple agents on the same task in parallel and returning a structured output.
+以下範例示範如何建立並行編排，讓多個代理程式同時執行相同任務並回傳結構化輸出。
 
-This sample demonstrates the basic steps of creating and starting a runtime, creating
-a concurrent orchestration with multiple agents with a structure output transform,
-invoking the orchestration, and finally waiting for the results.
+此範例展示建立和啟動運行時、建立具有結構化輸出轉換的多代理程式並行編排、
+呼叫編排，以及最終等待結果的基本步驟。
 """
 
 
 class ArticleAnalysis(BaseModel):
-    """A model to hold the analysis of an article."""
+    """用於保存文章分析的模型。"""
 
     themes: list[str]
     sentiments: list[str]
@@ -29,23 +27,23 @@ class ArticleAnalysis(BaseModel):
 
 
 def get_agents() -> list[Agent]:
-    """Return a list of agents that will participate in the concurrent orchestration.
+    """回傳將參與並行編排的代理程式清單。
 
-    Feel free to add or remove agents.
+    您可以自由新增或移除代理程式。
     """
     theme_agent = ChatCompletionAgent(
         name="ThemeAgent",
-        instructions="You are an expert in identifying themes in articles. Given an article, identify the main themes.",
+        instructions="您是識別文章主題的專家。給定一篇文章，識別主要主題。",
         service=AzureChatCompletion(),
     )
     sentiment_agent = ChatCompletionAgent(
         name="SentimentAgent",
-        instructions="You are an expert in sentiment analysis. Given an article, identify the sentiment.",
+        instructions="您是情感分析專家。給定一篇文章，識別情感。",
         service=AzureChatCompletion(),
     )
     entity_agent = ChatCompletionAgent(
         name="EntityAgent",
-        instructions="You are an expert in entity recognition. Given an article, extract the entities.",
+        instructions="您是實體識別專家。給定一篇文章，提取實體。",
         service=AzureChatCompletion(),
     )
 
@@ -53,53 +51,56 @@ def get_agents() -> list[Agent]:
 
 
 async def main():
-    """Main function to run the agents."""
-    # 1. Create a concurrent orchestration with multiple agents
-    #    and a structure output transform.
-    # To enable structured output, you must specify the output transform
-    #   and the generic types for the orchestration.
-    # Note: the chat completion service and model provided to the
-    #    structure output transform must support structured output.
+    """執行代理程式的主要函數。"""
+    # 1. 建立具有多個代理程式和結構化輸出轉換的並行編排。
+    # 要啟用結構化輸出，您必須指定輸出轉換和編排的泛型類型。
+    # 注意：提供給結構化輸出轉換的聊天完成服務和模型必須支援結構化輸出。
     agents = get_agents()
     concurrent_orchestration = ConcurrentOrchestration[str, ArticleAnalysis](
         members=agents,
-        output_transform=structured_outputs_transform(ArticleAnalysis, AzureChatCompletion()),
+        output_transform=structured_outputs_transform(
+            ArticleAnalysis, AzureChatCompletion()
+        ),
     )
 
-    # 2. Read the task from a file
-    with open(os.path.join(os.path.dirname(__file__), "../resources", "Hamlet_full_play_summary.txt")) as file:
+    # 2. 從檔案讀取任務
+    with open(
+        os.path.join(
+            os.path.dirname(__file__), "../resources", "Hamlet_full_play_summary.txt"
+        )
+    ) as file:
         task = file.read()
 
-    # 3. Create a runtime and start it
+    # 3. 建立運行時並啟動
     runtime = InProcessRuntime()
     runtime.start()
 
-    # 4. Invoke the orchestration with a task and the runtime
+    # 4. 使用任務和運行時呼叫編排
     orchestration_result = await concurrent_orchestration.invoke(
         task=task,
         runtime=runtime,
     )
 
-    # 5. Wait for the results
+    # 5. 等待結果
     value = await orchestration_result.get(timeout=20)
     if isinstance(value, ArticleAnalysis):
         print(value.model_dump_json(indent=2))
     else:
-        print("Unexpected result type:", type(value))
+        print("未預期的結果類型:", type(value))
 
-    # 6. Stop the runtime after the invocation is complete
+    # 6. 呼叫完成後停止運行時
     await runtime.stop_when_idle()
 
     """
-    Sample output:
+    範例輸出：
     {
     "themes": [
-        "Revenge and Justice",
-        "Madness",
-        "Corruption and Power",
-        "Death and Mortality",
-        "Appearance vs. Reality",
-        "Family and Loyalty"
+        "復仇與正義",
+        "瘋狂",
+        "腐敗與權力",
+        "死亡與死亡率",
+        "表象與現實",
+        "家庭與忠誠"
     ],
     "sentiments": [
         "dark",
