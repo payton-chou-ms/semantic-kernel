@@ -12,22 +12,20 @@ from semantic_kernel.contents import AuthorRole, ChatMessageContent
 from semantic_kernel.functions import kernel_function
 
 """
-The following sample demonstrates how to create a handoff orchestration that can triage
-GitHub issues based on their content. The orchestration consists of 3 agents, each
-specialized in a different area.
+以下範例示範如何建立可根據 GitHub 問題內容進行分流的移交編排。
+編排由 3 個代理程式組成，每個都專精於不同領域。
 
-The input to the orchestration is not longer a string or a chat message, but a Pydantic
-model (i.e. structured inputs). The model will get transformed into a chat message before
-being passed to the agents. This allows the orchestration to become more flexible and
-easier reusable.
+編排的輸入不再是字串或聊天訊息，而是 Pydantic 模型
+（即結構化輸入）。模型會在傳遞給代理程式之前轉換為聊天訊息。
+這使編排變得更靈活且更容易重複使用。
 
-This sample demonstrates the basic steps of creating and starting a runtime, creating
-a handoff orchestration, invoking the orchestration, and finally waiting for the results.
+此範例示範建立和啟動運行時、建立移交編排、
+呼叫編排，以及最後等待結果的基本步驟。
 """
 
 
 class GitHubLabels(Enum):
-    """Enum representing GitHub labels."""
+    """代表 GitHub 標籤的列舉。"""
 
     PYTHON = "python"
     DOTNET = ".NET"
@@ -39,7 +37,7 @@ class GitHubLabels(Enum):
 
 
 class GithubIssue(BaseModel):
-    """Model representing a GitHub issue."""
+    """代表 GitHub 問題的模型。"""
 
     id: str
     title: str
@@ -48,58 +46,58 @@ class GithubIssue(BaseModel):
 
 
 class Plan(BaseModel):
-    """Model representing a plan for resolving a GitHub issue."""
+    """代表解決 GitHub 問題計劃的模型。"""
 
     tasks: list[str]
 
 
 class GithubPlugin:
-    """Plugin for GitHub related operations."""
+    """GitHub 相關操作的外掛。"""
 
     @kernel_function
     async def add_labels(self, issue_id: str, labels: list[GitHubLabels]) -> None:
-        """Add labels to a GitHub issue."""
-        await asyncio.sleep(1)  # Simulate network delay
-        print(f"Adding labels {labels} to issue {issue_id}")
+        """為 GitHub 問題新增標籤。"""
+        await asyncio.sleep(1)  # 模擬網路延遲
+        print(f"正在為問題 {issue_id} 新增標籤 {labels}")
 
-    @kernel_function(description="Create a plan to resolve the issue.")
+    @kernel_function(description="建立解決問題的計劃。")
     async def create_plan(self, issue_id: str, plan: Plan) -> None:
-        """Create tasks for a GitHub issue."""
-        await asyncio.sleep(1)  # Simulate network delay
-        print(f"Creating plan for issue {issue_id} with tasks:\n{plan.model_dump_json(indent=2)}")
+        """為 GitHub 問題建立任務。"""
+        await asyncio.sleep(1)  # 模擬網路延遲
+        print(f"正在為問題 {issue_id} 建立計劃，任務：\n{plan.model_dump_json(indent=2)}")
 
 
 def get_agents() -> tuple[list[Agent], OrchestrationHandoffs]:
-    """Return a list of agents that will participate in the Handoff orchestration and the handoff relationships.
+    """回傳將參與移交編排的代理程式清單和移交關係。
 
-    Feel free to add or remove agents and handoff connections.
+    您可以自由新增或移除代理程式和移交連線。
     """
     triage_agent = ChatCompletionAgent(
         name="TriageAgent",
-        description="An agent that triages GitHub issues",
-        instructions="Given a GitHub issue, triage it.",
+        description="分流 GitHub 問題的代理程式",
+        instructions="給定一個 GitHub 問題，進行分流。",
         service=AzureChatCompletion(),
     )
     python_agent = ChatCompletionAgent(
         name="PythonAgent",
-        description="An agent that handles Python related issues",
-        instructions="You are an agent that handles Python related GitHub issues.",
+        description="處理 Python 相關問題的代理程式",
+        instructions="您是處理 Python 相關 GitHub 問題的代理程式。",
         service=AzureChatCompletion(),
         plugins=[GithubPlugin()],
     )
     dotnet_agent = ChatCompletionAgent(
         name="DotNetAgent",
-        description="An agent that handles .NET related issues",
-        instructions="You are an agent that handles .NET related GitHub issues.",
+        description="處理 .NET 相關問題的代理程式",
+        instructions="您是處理 .NET 相關 GitHub 問題的代理程式。",
         service=AzureChatCompletion(),
         plugins=[GithubPlugin()],
     )
 
-    # Define the handoff relationships between agents
+    # 定義代理程式之間的移交關係
     handoffs = {
         triage_agent.name: {
-            python_agent.name: "Transfer to this agent if the issue is Python related",
-            dotnet_agent.name: "Transfer to this agent if the issue is .NET related",
+            python_agent.name: "如果問題與 Python 相關，轉移到此代理程式",
+            dotnet_agent.name: "如果問題與 .NET 相關，轉移到此代理程式",
         },
     }
 
@@ -140,19 +138,17 @@ GithubIssueSample = GithubIssue(
 )
 
 
-# The default input transform will attempt to serialize an object into a string by using
-# `json.dump()`. However, an object of a Pydantic model type cannot be directly serialize
-# by `json.dump()`. Thus, we will need a custom transform.
+# 預設的輸入轉換會嘗試使用 `json.dump()` 將物件序列化為字串。
+# 然而，Pydantic 模型類型的物件無法直接由 `json.dump()` 序列化。
+# 因此，我們需要自訂轉換。
 def custom_input_transform(input_message: GithubIssue) -> ChatMessageContent:
     return ChatMessageContent(role=AuthorRole.USER, content=input_message.model_dump_json())
 
 
 async def main():
-    """Main function to run the agents."""
-    # 1. Create a handoff orchestration with multiple agents
-    #    and a custom input transform.
-    # To enable structured input, you must specify the input transform
-    #   and the generic types for the orchestration,
+    """執行代理程式的主要函數。"""
+    # 1. 建立具有多個代理程式和自訂輸入轉換的移交編排。
+    # 要啟用結構化輸入，您必須指定輸入轉換和編排的泛型類型，
     agents, handoffs = get_agents()
     handoff_orchestration = HandoffOrchestration[GithubIssue, ChatMessageContent](
         members=agents,
@@ -160,38 +156,37 @@ async def main():
         input_transform=custom_input_transform,
     )
 
-    # 2. Create a runtime and start it
+    # 2. 建立運行時並啟動
     runtime = InProcessRuntime()
     runtime.start()
 
-    # 3. Invoke the orchestration with a task and the runtime
+    # 3. 使用任務和運行時呼叫編排
     orchestration_result = await handoff_orchestration.invoke(
         task=GithubIssueSample,
         runtime=runtime,
     )
 
-    # 4. Wait for the results
+    # 4. 等待結果
     value = await orchestration_result.get(timeout=100)
     print(value)
 
-    # 5. Stop the runtime when idle
+    # 5. 閒置時停止運行時
     await runtime.stop_when_idle()
 
     """
-    Sample output:
-    Adding labels [<GitHubLabels.BUG: 'bug'>, <GitHubLabels.DOTNET: '.NET'>, <GitHubLabels.VECTORSTORE: 'vectorstore'>]
-        to issue 12345
-    Creating plan for issue 12345 with tasks:
+    範例輸出：
+    正在為問題 12345 新增標籤 [<GitHubLabels.BUG: 'bug'>, <GitHubLabels.DOTNET: '.NET'>, <GitHubLabels.VECTORSTORE: 'vectorstore'>]
+    正在為問題 12345 建立計劃，任務：
     {
     "tasks": [
-        "Investigate the issue to confirm the ambiguity in the SQL query when using VectorStoreRecordKey in filters.",
-        "Modify the query generation logic to explicitly list column names for vec_TestTable and prevent ambiguity.",
-        "Test the solution to ensure VectorStoreRecordKey can be used in filters without causing SQLite errors.",
-        "Update documentation to provide guidance on using VectorStoreRecordKey in filters to avoid similar issues.",
-        "Consider adding logging capability to track semantic search queries for easier debugging in the future."
+        "調查問題以確認在篩選器中使用 VectorStoreRecordKey 時 SQL 查詢的歧義性。",
+        "修改查詢生成邏輯以明確列出 vec_TestTable 的欄位名稱並防止歧義。",
+        "測試解決方案以確保 VectorStoreRecordKey 可以在篩選器中使用而不會造成 SQLite 錯誤。",
+        "更新文件以提供在篩選器中使用 VectorStoreRecordKey 的指引，避免類似問題。",
+        "考慮增加日誌記錄功能來追蹤語意搜尋查詢，以便將來更容易除錯。"
     ]
     }
-    Task is completed with summary: No handoff agent name provided and no human response function set. Ending task.
+    任務已完成，摘要：未提供移交代理程式名稱且未設定人類回應函數。結束任務。
     """
 
 
