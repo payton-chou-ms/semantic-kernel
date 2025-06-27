@@ -8,83 +8,83 @@ from semantic_kernel.agents.runtime import InProcessRuntime
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 
 """
-The following sample demonstrates how to cancel an invocation of an orchestration
-that is still running.
+以下範例示範如何取消仍在執行中的編排呼叫。
 
-This sample demonstrates the basic steps of creating and starting a runtime, creating
-a sequential orchestration, invoking the orchestration, and cancelling it before it
-finishes.
+此範例展示建立和啟動運行時、建立順序編排、呼叫編排，
+以及在完成前取消它的基本步驟。
 """
 
-# Set up logging to see the invocation process
-logging.basicConfig(level=logging.WARNING)  # Set default level to WARNING
-logging.getLogger("semantic_kernel.agents.orchestration.sequential").setLevel(logging.DEBUG)
+# 設定日誌記錄以查看呼叫過程
+logging.basicConfig(level=logging.WARNING)  # 將預設等級設定為 WARNING
+logging.getLogger("semantic_kernel.agents.orchestration.sequential").setLevel(
+    logging.DEBUG
+)
 
 
 def get_agents() -> list[Agent]:
-    """Return a list of agents that will participate in the sequential orchestration.
+    """回傳將參與順序編排的代理程式清單。
 
-    Feel free to add or remove agents.
+    您可以自由新增或移除代理程式。
     """
     concept_extractor_agent = ChatCompletionAgent(
         name="ConceptExtractorAgent",
         instructions=(
-            "You are a marketing analyst. Given a product description, identify:\n"
-            "- Key features\n"
-            "- Target audience\n"
-            "- Unique selling points\n\n"
+            "您是行銷分析師。給定產品描述，請識別：\n"
+            "- 主要功能\n"
+            "- 目標受眾\n"
+            "- 獨特賣點\n\n"
         ),
         service=AzureChatCompletion(),
     )
     writer_agent = ChatCompletionAgent(
         name="WriterAgent",
         instructions=(
-            "You are a marketing copywriter. Given a block of text describing features, audience, and USPs, "
-            "compose a compelling marketing copy (like a newsletter section) that highlights these points. "
-            "Output should be short (around 150 words), output just the copy as a single text block."
+            "您是行銷文案撰寫者。給定描述功能、受眾和獨特賣點的文字區塊，"
+            "撰寫引人注目的行銷文案（如電子報段落），突出這些要點。"
+            "輸出應該簡短（約150字），僅輸出文案作為單一文字區塊。"
         ),
         service=AzureChatCompletion(),
     )
     format_proof_agent = ChatCompletionAgent(
         name="FormatProofAgent",
         instructions=(
-            "You are an editor. Given the draft copy, correct grammar, improve clarity, ensure consistent tone, "
-            "give format and make it polished. Output the final improved copy as a single text block."
+            "您是編輯。給定草稿文案，請更正語法、改善清晰度、確保一致的語調，"
+            "進行格式化並使其精練。將最終改善的文案輸出為單一文字區塊。"
         ),
         service=AzureChatCompletion(),
     )
 
-    # The order of the agents in the list will be the order in which they are executed
+    # 清單中代理程式的順序將是它們執行的順序
     return [concept_extractor_agent, writer_agent, format_proof_agent]
 
 
 async def main():
-    """Main function to run the agents."""
-    # 1. Create a sequential orchestration with multiple agents
+    """執行代理程式的主要函數。"""
+    # 1. 建立具有多個代理程式的順序編排
     agents = get_agents()
     sequential_orchestration = SequentialOrchestration(members=agents)
 
-    # 2. Create a runtime and start it
+    # 2. 建立運行時並啟動
     runtime = InProcessRuntime()
     runtime.start()
 
-    # 3. Invoke the orchestration with a task and the runtime
+    # 3. 使用任務和運行時呼叫編排
     orchestration_result = await sequential_orchestration.invoke(
-        task="An eco-friendly stainless steel water bottle that keeps drinks cold for 24 hours",
+        task="一個環保的不鏽鋼水瓶，可讓飲料保持24小時的冰冷",
         runtime=runtime,
     )
 
-    # 4. Cancel the orchestration before it finishes
-    await asyncio.sleep(1)  # Simulate some delay before cancellation
+    # 4. 在編排完成前取消它
+    await asyncio.sleep(1)  # 模擬取消前的一些延遲
     orchestration_result.cancel()
 
     try:
-        # Attempt to get the result will result in an exception due to cancellation
+        # 嘗試獲取結果將因取消而導致異常
         _ = await orchestration_result.get(timeout=20)
     except Exception as e:
         print(e)
     finally:
-        # 5. Stop the runtime
+        # 5. 停止運行時
         await runtime.stop_when_idle()
 
     """

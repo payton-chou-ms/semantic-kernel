@@ -2,113 +2,113 @@
 
 import asyncio
 
-from semantic_kernel.agents import Agent, ChatCompletionAgent, GroupChatOrchestration, RoundRobinGroupChatManager
+from semantic_kernel.agents import (
+    Agent,
+    ChatCompletionAgent,
+    GroupChatOrchestration,
+    RoundRobinGroupChatManager,
+)
 from semantic_kernel.agents.runtime import InProcessRuntime
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.contents import ChatMessageContent
 
 """
-The following sample demonstrates how to create a group chat orchestration with a default
-round robin manager for controlling the flow of conversation in a round robin fashion.
+以下範例示範如何建立具有預設輪詢管理器的群組聊天編排，
+以輪詢方式控制對話流程。
 
-Think of the group chat manager as a state machine, with the following possible states:
-- Request for user message
-- Termination, after which the manager will try to filter a result from the conversation
-- Continuation, at which the manager will select the next agent to speak
+將群組聊天管理器視為狀態機，具有以下可能狀態：
+- 請求使用者訊息
+- 終止，之後管理器將嘗試從對話中過濾結果
+- 繼續，此時管理器將選擇下一個發言的代理程式
 
-This sample demonstrates the basic steps of creating and starting a runtime, creating
-a group chat orchestration with a group chat manager, invoking the orchestration,
-and finally waiting for the results.
+此範例展示建立和啟動運行時、建立具有群組聊天管理器的群組聊天編排、
+呼叫編排，以及最終等待結果的基本步驟。
 
-There are two agents in this orchestration: a writer and a reviewer. They work iteratively
-to refine a slogan for a new electric SUV.
+此編排中有兩個代理程式：一個作家和一個審查者。
+它們反覆合作為新電動SUV優化口號。
 """
 
 
 def get_agents() -> list[Agent]:
-    """Return a list of agents that will participate in the group style discussion.
+    """回傳將參與群組風格討論的代理程式清單。
 
-    Feel free to add or remove agents.
+    您可以自由新增或移除代理程式。
     """
     writer = ChatCompletionAgent(
         name="Writer",
-        description="A content writer.",
-        instructions=(
-            "You are an excellent content writer. You create new content and edit contents based on the feedback."
-        ),
+        description="內容作家。",
+        instructions=("您是一位優秀的內容作家。您會根據回饋建立新內容並編輯內容。"),
         service=AzureChatCompletion(),
     )
     reviewer = ChatCompletionAgent(
         name="Reviewer",
-        description="A content reviewer.",
-        instructions=(
-            "You are an excellent content reviewer. You review the content and provide feedback to the writer."
-        ),
+        description="內容審查者。",
+        instructions=("您是一位優秀的內容審查者。您會審查內容並向作家提供回饋。"),
         service=AzureChatCompletion(),
     )
 
-    # The order of the agents in the list will be the order in which they will be picked by the round robin manager
+    # 清單中代理程式的順序將是輪詢管理器選擇它們的順序
     return [writer, reviewer]
 
 
 def agent_response_callback(message: ChatMessageContent) -> None:
-    """Observer function to print the messages from the agents."""
+    """觀察者函數，用於列印代理程式的訊息。"""
     print(f"**{message.name}**\n{message.content}")
 
 
 async def main():
-    """Main function to run the agents."""
-    # 1. Create a group chat orchestration with a round robin manager
+    """執行代理程式的主要函數。"""
+    # 1. 建立具有輪詢管理器的群組聊天編排
     agents = get_agents()
     group_chat_orchestration = GroupChatOrchestration(
         members=agents,
-        # max_rounds is odd, so that the writer gets the last round
+        # max_rounds 是奇數，所以作家獲得最後一輪
         manager=RoundRobinGroupChatManager(max_rounds=5),
         agent_response_callback=agent_response_callback,
     )
 
-    # 2. Create a runtime and start it
+    # 2. 建立運行時並啟動
     runtime = InProcessRuntime()
     runtime.start()
 
-    # 3. Invoke the orchestration with a task and the runtime
+    # 3. 使用任務和運行時呼叫編排
     orchestration_result = await group_chat_orchestration.invoke(
-        task="Create a slogan for a new electric SUV that is affordable and fun to drive.",
+        task="為既平價又好玩的新電動SUV創造一個口號。",
         runtime=runtime,
     )
 
-    # 4. Wait for the results
+    # 4. 等待結果
     value = await orchestration_result.get()
-    print(f"***** Result *****\n{value}")
+    print(f"***** 結果 *****\n{value}")
 
-    # 5. Stop the runtime after the invocation is complete
+    # 5. 呼叫完成後停止運行時
     await runtime.stop_when_idle()
 
     """
-    Sample output:
+    範例輸出：
     **Writer**
-    "Drive Tomorrow: Affordable Adventure Starts Today!"
+    "駕馭明日：平價冒險今日啟程！"
     **Reviewer**
-    This slogan, "Drive Tomorrow: Affordable Adventure Starts Today!", effectively communicates the core attributes of
-    the new electric SUV being promoted: affordability, fun, and forward-thinking. Here's some feedback:
+    這個口號"駕馭明日：平價冒險今日啟程！"有效地傳達了正在推廣的新電動SUV的核心屬性：
+    平價性、樂趣和前瞻性思維。以下是一些回饋：
 
     ...
 
-    Overall, the slogan captures the essence of an innovative, enjoyable, and accessible vehicle. Great job!
+    總的來說，這個口號捕捉了創新、愉快和易於接觸的車輛本質。做得很好！
     **Writer**
-    "Embrace the Future: Your Affordable Electric Adventure Awaits!"
+    "擁抱未來：您的平價電動冒險等著您！"
     **Reviewer**
-    This revised slogan, "Embrace the Future: Your Affordable Electric Adventure Awaits!", further enhances the message
-    of the electric SUV. Here's an evaluation:
+    這個修改版口號"擁抱未來：您的平價電動冒險等著您！"進一步增強了電動SUV的訊息。
+    以下是評估：
 
     ...
 
-    Overall, this version of the slogan effectively communicates the vehicle's benefits while maintaining a positive
-        and engaging tone. Keep up the good work!
+    總的來說，這個版本的口號有效地傳達了車輛的優點，同時保持積極和吸引人的語調。
+    繼續保持好工作！
     **Writer**
-    "Feel the Charge: Adventure Meets Affordability in Your New Electric SUV!"
-    ***** Result *****
-    "Feel the Charge: Adventure Meets Affordability in Your New Electric SUV!"
+    "感受電力：冒險與平價在您的新電動SUV中相遇！"
+    ***** 結果 *****
+    "感受電力：冒險與平價在您的新電動SUV中相遇！"
     """
 
 

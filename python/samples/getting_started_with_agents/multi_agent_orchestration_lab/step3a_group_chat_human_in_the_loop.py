@@ -4,7 +4,10 @@ import asyncio
 import sys
 
 from semantic_kernel.agents import Agent, ChatCompletionAgent, GroupChatOrchestration
-from semantic_kernel.agents.orchestration.group_chat import BooleanResult, RoundRobinGroupChatManager
+from semantic_kernel.agents.orchestration.group_chat import (
+    BooleanResult,
+    RoundRobinGroupChatManager,
+)
 from semantic_kernel.agents.runtime import InProcessRuntime
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.contents import AuthorRole, ChatHistory, ChatMessageContent
@@ -15,95 +18,92 @@ else:
     from typing_extensions import override  # pragma: no cover
 
 """
-The following sample demonstrates how to create a group chat orchestration with human
-in the loop. Human in the loop is achieved by overriding the default round robin manager
-to allow user input after the reviewer agent's message.
+以下範例示範如何建立具有人類參與迴圈的群組聊天編排。
+人類參與迴圈是透過覆寫預設的輪詢管理員來實現，
+允許在審查員代理程式的訊息後進行使用者輸入。
 
-Think of the group chat manager as a state machine, with the following possible states:
-- Request for user message
-- Termination, after which the manager will try to filter a result from the conversation
-- Continuation, at which the manager will select the next agent to speak
+將群組聊天管理員視為狀態機，具有以下可能的狀態：
+- 請求使用者訊息
+- 終止，在此之後管理員將嘗試從對話中篩選結果
+- 繼續，在此管理員將選擇下一個要發言的代理程式
 
-This sample demonstrates the basic steps of customizing the group chat manager to enter
-the user input state, creating a human response function to get user input, and providing
-it to the group chat manager.
+此範例示範自訂群組聊天管理員以進入使用者輸入狀態、
+建立人類回應函數來取得使用者輸入，並將其提供給群組聊天管理員的基本步驟。
 
-There are two agents in this orchestration: a writer and a reviewer. They work iteratively
-to refine a slogan for a new electric SUV.
+此編排中有兩個代理程式：撰寫者和審查員。
+他們反覆合作為新的電動SUV改善口號。
 """
 
 
 def get_agents() -> list[Agent]:
-    """Return a list of agents that will participate in the group style discussion.
+    """回傳將參與群組風格討論的代理程式清單。
 
-    Feel free to add or remove agents.
+    您可以自由新增或移除代理程式。
     """
     writer = ChatCompletionAgent(
         name="Writer",
-        description="A content writer.",
-        instructions=(
-            "You are an excellent content writer. You create new content and edit contents based on the feedback."
-        ),
+        description="內容撰寫者。",
+        instructions=("您是優秀的內容撰寫者。您能基於回饋建立新內容和編輯內容。"),
         service=AzureChatCompletion(),
     )
     reviewer = ChatCompletionAgent(
         name="Reviewer",
-        description="A content reviewer.",
-        instructions=(
-            "You are an excellent content reviewer. You review the content and provide feedback to the writer."
-        ),
+        description="內容審查員。",
+        instructions=("您是優秀的內容審查員。您審查內容並向撰寫者提供回饋。"),
         service=AzureChatCompletion(),
     )
 
-    # The order of the agents in the list will be the order in which they will be picked by the round robin manager
+    # 清單中代理程式的順序將是輪詢管理員選擇它們的順序
     return [writer, reviewer]
 
 
 class CustomRoundRobinGroupChatManager(RoundRobinGroupChatManager):
-    """Custom round robin group chat manager to enable user input."""
+    """自訂輪詢群組聊天管理員以啟用使用者輸入。"""
 
     @override
-    async def should_request_user_input(self, chat_history: ChatHistory) -> BooleanResult:
-        """Override the default behavior to request user input after the reviewer's message.
+    async def should_request_user_input(
+        self, chat_history: ChatHistory
+    ) -> BooleanResult:
+        """覆寫預設行為，在審查員訊息後請求使用者輸入。
 
-        The manager will check if input from human is needed after each agent message.
+        管理員將在每個代理程式訊息後檢查是否需要人類輸入。
         """
         if len(chat_history.messages) == 0:
             return BooleanResult(
                 result=False,
-                reason="No agents have spoken yet.",
+                reason="尚無代理程式發言。",
             )
         last_message = chat_history.messages[-1]
         if last_message.name == "Reviewer":
             return BooleanResult(
                 result=True,
-                reason="User input is needed after the reviewer's message.",
+                reason="在審查員訊息後需要使用者輸入。",
             )
 
         return BooleanResult(
             result=False,
-            reason="User input is not needed if the last message is not from the reviewer.",
+            reason="如果最後一個訊息不是來自審查員，則不需要使用者輸入。",
         )
 
 
 def agent_response_callback(message: ChatMessageContent) -> None:
-    """Observer function to print the messages from the agents."""
+    """觀察函數，用於列印來自代理程式的訊息。"""
     print(f"**{message.name}**\n{message.content}")
 
 
 async def human_response_function(chat_histoy: ChatHistory) -> ChatMessageContent:
-    """Function to get user input."""
-    user_input = input("User: ")
+    """取得使用者輸入的函數。"""
+    user_input = input("使用者：")
     return ChatMessageContent(role=AuthorRole.USER, content=user_input)
 
 
 async def main():
-    """Main function to run the agents."""
-    # 1. Create a group chat orchestration with a round robin manager
+    """執行代理程式的主要函數。"""
+    # 1. 建立具有輪詢管理員的群組聊天編排
     agents = get_agents()
     group_chat_orchestration = GroupChatOrchestration(
         members=agents,
-        # max_rounds is odd, so that the writer gets the last round
+        # max_rounds 是奇數，這樣撰寫者可以獲得最後一輪
         manager=CustomRoundRobinGroupChatManager(
             max_rounds=5,
             human_response_function=human_response_function,
@@ -111,45 +111,45 @@ async def main():
         agent_response_callback=agent_response_callback,
     )
 
-    # 2. Create a runtime and start it
+    # 2. 建立運行時並啟動
     runtime = InProcessRuntime()
     runtime.start()
 
-    # 3. Invoke the orchestration with a task and the runtime
+    # 3. 使用任務和運行時呼叫編排
     orchestration_result = await group_chat_orchestration.invoke(
-        task="Create a slogan for a new electric SUV that is affordable and fun to drive.",
+        task="為新的電動SUV建立一個口號，要求經濟實惠且駕駛樂趣。",
         runtime=runtime,
     )
 
-    # 4. Wait for the results
+    # 4. 等待結果
     value = await orchestration_result.get()
-    print(f"***** Result *****\n{value}")
+    print(f"***** 結果 *****\n{value}")
 
-    # 5. Stop the runtime after the invocation is complete
+    # 5. 呼叫完成後停止運行時
     await runtime.stop_when_idle()
 
     """
     **Writer**
-    "Electrify Your Journey: Affordable Adventure Awaits!"
+    "點亮您的旅程：實惠的冒險等待著您！"
     **Reviewer**
-    Your slogan captures the essence of being both affordable and fun, which is great! However, you might want to ...
-    User: I'd like to also make it rhyme
+    您的口號捕捉了經濟實惠又有趣的本質，這很棒！不過，您可能想要...
+    使用者：我希望它也能押韻
     **Writer**
-    Sure! Here are a few rhyming slogan options for your electric SUV:
+    當然！以下是您的電動SUV的幾個押韻口號選項：
 
-    1. "Zoom Through the Streets, Feel the Beats!"
-    2. "Charge and Drive, Feel the Jive!"
-    3. "Electrify Your Ride, Let Fun Be Your Guide!"
-    4. "Zoom in Style, Drive with a Smile!"
+    1. "街道飛馳，感受節拍！"
+    2. "充電駕駛，感受活力！"
+    3. "點亮您的駕駛，讓樂趣成為您的嚮導！"
+    4. "時尚飛馳，微笑駕駛！"
 
-    Let me know if you'd like more options or variations!
+    如果您想要更多選項或變化，請告訴我！
     **Reviewer**
-    These rhyming slogans are creative and energetic! They effectively capture the fun aspect while promoting ...
-    User: Please continue with the reviewer's suggestions
+    這些押韻口號富有創意且充滿活力！它們有效地捕捉了樂趣面向，同時推廣...
+    使用者：請繼續審查員的建議
     **Writer**
-    Absolutely! Let's refine and expand on the reviewer's suggestions for a more polished and appealing set of rhym...
-    ***** Result *****
-    Absolutely! Let's refine and expand on the reviewer's suggestions for a more polished and appealing set of rhym...
+    絕對沒問題！讓我們基於審查員的建議來改善和擴展，創造更精緻和吸引人的押韻集合...
+    ***** 結果 *****
+    絕對沒問題！讓我們基於審查員的建議來改善和擴展，創造更精緻和吸引人的押韻集合...
     """
 
 
