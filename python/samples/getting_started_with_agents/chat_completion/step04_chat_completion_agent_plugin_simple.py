@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 import asyncio
+import os
+from dotenv import load_dotenv
 from typing import Annotated
 
 from azure.identity import AzureCliCredential
@@ -8,6 +10,12 @@ from azure.identity import AzureCliCredential
 from semantic_kernel.agents import ChatCompletionAgent, ChatHistoryAgentThread
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.functions import kernel_function
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Constants
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 
 """
 The following sample demonstrates how to create a chat completion agent that
@@ -49,6 +57,9 @@ async def main():
     # 1. Create the agent
     agent = ChatCompletionAgent(
         service=AzureChatCompletion(credential=AzureCliCredential()),
+        # service=AzureChatCompletion(
+        #     endpoint=MY_AZURE_OPENAI_ENDPOINT,
+        # ),
         name="Host",
         instructions="Answer questions about the menu.",
         plugins=[MenuPlugin()],

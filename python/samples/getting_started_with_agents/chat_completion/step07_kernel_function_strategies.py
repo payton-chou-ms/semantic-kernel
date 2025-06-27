@@ -3,12 +3,24 @@
 import asyncio
 
 from azure.identity import AzureCliCredential
+import os
+from dotenv import load_dotenv
 
 from semantic_kernel import Kernel
 from semantic_kernel.agents import AgentGroupChat, ChatCompletionAgent
-from semantic_kernel.agents.strategies import KernelFunctionSelectionStrategy, KernelFunctionTerminationStrategy
+from semantic_kernel.agents.strategies import (
+    KernelFunctionSelectionStrategy,
+    KernelFunctionTerminationStrategy,
+)
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.functions import KernelFunctionFromPrompt
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Constants
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
+
 
 """
 The following sample demonstrates how to create a simple, agent group chat that utilizes
@@ -30,7 +42,12 @@ https://learn.microsoft.com/semantic-kernel/support/migration/group-chat-orchest
 
 def _create_kernel_with_chat_completion(service_id: str) -> Kernel:
     kernel = Kernel()
-    kernel.add_service(AzureChatCompletion(service_id=service_id, credential=AzureCliCredential()))
+    kernel.add_service(
+        AzureChatCompletion(service_id=service_id, credential=AzureCliCredential())
+    )
+    # kernel.add_service(
+    #     AzureChatCompletion(endpoint=MY_AZURE_OPENAI_ENDPOINT, service_id=service_id)
+    # )
     return kernel
 
 
@@ -117,7 +134,9 @@ async def main():
         selection_strategy=KernelFunctionSelectionStrategy(
             function=selection_function,
             kernel=_create_kernel_with_chat_completion("selection"),
-            result_parser=lambda result: str(result.value[0]) if result.value is not None else COPYWRITER_NAME,
+            result_parser=lambda result: (
+                str(result.value[0]) if result.value is not None else COPYWRITER_NAME
+            ),
             agent_variable_name="agents",
             history_variable_name="history",
         ),

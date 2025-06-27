@@ -1,12 +1,20 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 import asyncio
+import os
+from dotenv import load_dotenv
 
 from azure.identity import AzureCliCredential
 
 from semantic_kernel import Kernel
 from semantic_kernel.agents import ChatCompletionAgent, ChatHistoryAgentThread
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Constants
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 
 """
 The following sample demonstrates how to create a chat completion agent that
@@ -34,6 +42,11 @@ async def main():
     # 1. Create the instance of the Kernel to register an AI service
     kernel = Kernel()
     kernel.add_service(AzureChatCompletion(credential=AzureCliCredential()))
+    # kernel.add_service(
+    #     AzureChatCompletion(
+    #         endpoint=MY_AZURE_OPENAI_ENDPOINT,
+    #     )
+    # )
 
     # 2. Create the agent
     agent = ChatCompletionAgent(

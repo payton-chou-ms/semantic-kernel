@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 import asyncio
+import os
+from dotenv import load_dotenv
 from typing import Annotated
 
 from azure.identity import AzureCliCredential
@@ -10,6 +12,12 @@ from semantic_kernel.agents import ChatCompletionAgent, ChatHistoryAgentThread
 from semantic_kernel.connectors.ai import FunctionChoiceBehavior
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.functions import KernelArguments, kernel_function
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Constants
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 
 """
 The following sample demonstrates how to create a chat completion agent that
@@ -55,11 +63,19 @@ async def main():
     service_id = "agent"
     kernel = Kernel()
     kernel.add_plugin(MenuPlugin(), plugin_name="menu")
-    kernel.add_service(AzureChatCompletion(service_id=service_id, credential=AzureCliCredential()))
+    kernel.add_service(
+        AzureChatCompletion(service_id=service_id, credential=AzureCliCredential())
+    )
+    # Modify by Payton
+    # kernel.add_service(
+    #     AzureChatCompletion(endpoint=MY_AZURE_OPENAI_ENDPOINT, service_id=service_id)
+    # )
 
     # 2. Configure the function choice behavior to auto invoke kernel functions
     # so that the agent can automatically execute the menu plugin functions when needed
-    settings = kernel.get_prompt_execution_settings_from_service_id(service_id=service_id)
+    settings = kernel.get_prompt_execution_settings_from_service_id(
+        service_id=service_id
+    )
     settings.function_choice_behavior = FunctionChoiceBehavior.Auto()
 
     # 3. Create the agent
