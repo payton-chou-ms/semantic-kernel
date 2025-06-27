@@ -3,7 +3,14 @@
 import asyncio
 import sys
 
-from semantic_kernel.agents import Agent, ChatCompletionAgent, GroupChatOrchestration
+from azure.identity.aio import DefaultAzureCredential
+
+from semantic_kernel.agents import (
+    Agent,
+    AzureAIAgent,
+    AzureAIAgentSettings,
+    GroupChatOrchestration,
+)
 from semantic_kernel.agents.orchestration.group_chat import (
     BooleanResult,
     GroupChatManager,
@@ -28,106 +35,157 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override  # pragma: no cover
 
+# Constants
+SEPARATOR_LINE = "*********************"
+MY_AZURE_OPENAI_ENDPOINT = "https://foundypbxy.openai.azure.com/openai/deployments/o4-mini/chat/completions?api-version=2025-01-01-preview"
+
 
 """
 以下範例示範如何建立群組聊天編排，
-使用聊天完成服務來控制對話流程的群組聊天管理員。
+使用 Azure AI Agent 服務和自訂聊天完成群組聊天管理員來控制對話流程。
 
-此範例建立一組代表不同觀點的代理程式，
+此範例建立一組代表不同觀點的 Azure AI 代理程式，
 並將他們放入群組聊天中討論一個主題。群組聊天管理員負責
 控制對話流程、選擇下一個發言的代理程式，以及
 篩選對話結果，即討論的摘要。
 """
 
 
-def get_agents() -> list[Agent]:
+async def get_agents(client) -> list[Agent]:
     """回傳將參與群組風格討論的代理程式清單。
 
     您可以自由新增或移除代理程式。
     """
-    farmer = ChatCompletionAgent(
+    # Create farmer agent in Azure AI Agent service
+    farmer_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="Farmer",
-        description="來自東南亞的農村農民。",
         instructions=(
             "您是來自東南亞的農民。"
             "您的生活與土地和家庭深度連結。"
             "您重視傳統和永續發展。"
             "您正在進行辯論。請自由地以尊重的方式挑戰其他參與者。"
         ),
-        service=AzureChatCompletion(),
+        description="來自東南亞的農村農民。",
     )
-    developer = ChatCompletionAgent(
+    farmer = AzureAIAgent(
+        client=client,
+        definition=farmer_agent_definition,
+    )
+
+    # Create developer agent in Azure AI Agent service
+    developer_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="Developer",
-        description="來自美國的都市軟體開發者。",
         instructions=(
             "您是來自美國的軟體開發者。"
             "您的生活步調快速且以技術為導向。"
             "您重視創新、自由和工作與生活的平衡。"
             "您正在進行辯論。請自由地以尊重的方式挑戰其他參與者。"
         ),
-        service=AzureChatCompletion(),
+        description="來自美國的都市軟體開發者。",
     )
-    teacher = ChatCompletionAgent(
+    developer = AzureAIAgent(
+        client=client,
+        definition=developer_agent_definition,
+    )
+
+    # Create teacher agent in Azure AI Agent service
+    teacher_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="Teacher",
-        description="來自東歐的退休歷史教師",
         instructions=(
             "您是來自東歐的退休歷史教師。"
             "您為討論帶來歷史和哲學觀點。"
             "您重視傳承、學習和文化延續性。"
             "您正在進行辯論。請自由地以尊重的方式挑戰其他參與者。"
         ),
-        service=AzureChatCompletion(),
+        description="來自東歐的退休歷史教師",
     )
-    activist = ChatCompletionAgent(
+    teacher = AzureAIAgent(
+        client=client,
+        definition=teacher_agent_definition,
+    )
+
+    # Create activist agent in Azure AI Agent service
+    activist_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="Activist",
-        description="來自南美洲的年輕行動主義者。",
         instructions=(
             "您是來自南美洲的年輕行動主義者。"
             "您專注於社會正義、環境權利和世代變遷。"
             "您正在進行辯論。請自由地以尊重的方式挑戰其他參與者。"
         ),
-        service=AzureChatCompletion(),
+        description="來自南美洲的年輕行動主義者。",
     )
-    spiritual_leader = ChatCompletionAgent(
+    activist = AzureAIAgent(
+        client=client,
+        definition=activist_agent_definition,
+    )
+
+    # Create spiritual leader agent in Azure AI Agent service
+    spiritual_leader_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="SpiritualLeader",
-        description="來自中東的精神領袖。",
         instructions=(
             "您是來自中東的精神領袖。"
             "您提供基於宗教、道德和社區服務的見解。"
             "您正在進行辯論。請自由地以尊重的方式挑戰其他參與者。"
         ),
-        service=AzureChatCompletion(),
+        description="來自中東的精神領袖。",
     )
-    artist = ChatCompletionAgent(
+    spiritual_leader = AzureAIAgent(
+        client=client,
+        definition=spiritual_leader_agent_definition,
+    )
+
+    # Create artist agent in Azure AI Agent service
+    artist_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="Artist",
-        description="來自非洲的藝術家。",
         instructions=(
             "您是來自非洲的藝術家。"
             "您透過創意表達、說故事和集體記憶來看待生活。"
             "您正在進行辯論。請自由地以尊重的方式挑戰其他參與者。"
         ),
-        service=AzureChatCompletion(),
+        description="來自非洲的藝術家。",
     )
-    immigrant = ChatCompletionAgent(
+    artist = AzureAIAgent(
+        client=client,
+        definition=artist_agent_definition,
+    )
+
+    # Create immigrant agent in Azure AI Agent service
+    immigrant_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="Immigrant",
-        description="來自亞洲居住在加拿大的移民企業家。",
         instructions=(
             "您是來自亞洲居住在加拿大的移民企業家。"
             "您在傳統與適應之間取得平衡。"
             "您專注於家庭成功、風險和機會。"
             "您正在進行辯論。請自由地以尊重的方式挑戰其他參與者。"
         ),
-        service=AzureChatCompletion(),
+        description="來自亞洲居住在加拿大的移民企業家。",
     )
-    doctor = ChatCompletionAgent(
+    immigrant = AzureAIAgent(
+        client=client,
+        definition=immigrant_agent_definition,
+    )
+
+    # Create doctor agent in Azure AI Agent service
+    doctor_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="Doctor",
-        description="來自斯堪地那維亞的醫生。",
         instructions=(
             "您是來自斯堪地那維亞的醫生。"
             "您的觀點受到公共衛生、公平和結構化社會支援的影響。"
             "您正在進行辯論。請自由地以尊重的方式挑戰其他參與者。"
         ),
-        service=AzureChatCompletion(),
+        description="來自斯堪地那維亞的醫生。",
+    )
+    doctor = AzureAIAgent(
+        client=client,
+        definition=doctor_agent_definition,
     )
 
     return [
@@ -231,11 +289,11 @@ class ChatCompletionGroupChatManager(GroupChatManager):
 
         termination_with_reason = BooleanResult.model_validate_json(response.content)
 
-        print("*********************")
+        print(SEPARATOR_LINE)
         print(
             f"Should terminate: {termination_with_reason.result}\nReason: {termination_with_reason.reason}."
         )
-        print("*********************")
+        print(SEPARATOR_LINE)
 
         return termination_with_reason
 
@@ -281,11 +339,11 @@ class ChatCompletionGroupChatManager(GroupChatManager):
             response.content
         )
 
-        print("*********************")
+        print(SEPARATOR_LINE)
         print(
             f"Next participant: {participant_name_with_reason.result}\nReason: {participant_name_with_reason.reason}."
         )
-        print("*********************")
+        print(SEPARATOR_LINE)
 
         if participant_name_with_reason.result in participant_descriptions:
             return participant_name_with_reason
@@ -341,34 +399,48 @@ def agent_response_callback(message: ChatMessageContent) -> None:
 
 async def main():
     """執行代理程式的主要函數。"""
-    # 1. 使用自訂群組聊天管理員建立群組聊天編排
-    agents = get_agents()
-    group_chat_orchestration = GroupChatOrchestration(
-        members=agents,
-        manager=ChatCompletionGroupChatManager(
-            topic="對您個人而言，美好的生活意味著什麼？",
-            service=AzureChatCompletion(),
-            max_rounds=10,
-        ),
-        agent_response_callback=agent_response_callback,
-    )
+    async with (
+        DefaultAzureCredential() as creds,
+        AzureAIAgent.create_client(credential=creds) as client,
+    ):
+        # 1. Create Azure AI agents using the Azure AI Agent service
+        agents = await get_agents(client)
 
-    # 2. 建立運行時並啟動
-    runtime = InProcessRuntime()
-    runtime.start()
+        # 2. 使用自訂群組聊天管理員建立群組聊天編排
+        group_chat_orchestration = GroupChatOrchestration(
+            members=agents,
+            manager=ChatCompletionGroupChatManager(
+                topic="對您個人而言，美好的生活意味著什麼？",
+                service=AzureChatCompletion(
+                    endpoint=MY_AZURE_OPENAI_ENDPOINT,
+                ),
+                max_rounds=10,
+            ),
+            agent_response_callback=agent_response_callback,
+        )
 
-    # 3. 使用任務和運行時呼叫編排
-    orchestration_result = await group_chat_orchestration.invoke(
-        task="請開始討論。",
-        runtime=runtime,
-    )
+        # 3. 建立運行時並啟動
+        runtime = InProcessRuntime()
+        runtime.start()
 
-    # 4. 等待結果
-    value = await orchestration_result.get()
-    print(value)
+        try:
+            # 4. 使用任務和運行時呼叫編排
+            orchestration_result = await group_chat_orchestration.invoke(
+                task="請開始討論。",
+                runtime=runtime,
+            )
 
-    # 5. 呼叫完成後停止運行時
-    await runtime.stop_when_idle()
+            # 5. 等待結果
+            value = await orchestration_result.get()
+            print(value)
+
+        finally:
+            # 6. 呼叫完成後停止運行時
+            await runtime.stop_when_idle()
+
+            # 7. Cleanup: delete the agents
+            for agent in agents:
+                await client.agents.delete_agent(agent.id)
 
     """
     範例輸出：
