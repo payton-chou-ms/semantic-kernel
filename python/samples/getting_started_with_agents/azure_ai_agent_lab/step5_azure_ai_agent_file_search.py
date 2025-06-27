@@ -6,15 +6,19 @@ import os
 from azure.ai.agents.models import FileInfo, FileSearchTool, VectorStore
 from azure.identity.aio import DefaultAzureCredential
 
-from semantic_kernel.agents import AzureAIAgent, AzureAIAgentSettings, AzureAIAgentThread
+from semantic_kernel.agents import (
+    AzureAIAgent,
+    AzureAIAgentSettings,
+    AzureAIAgentThread,
+)
 from semantic_kernel.contents import AuthorRole
 
 """
-The following sample demonstrates how to create a simple, Azure AI agent that
-uses a file search tool to answer user questions.
+以下範例示範如何建立使用檔案搜尋工具的簡易 Azure AI Agent，
+並回答使用者問題。
 """
 
-# Simulate a conversation with the agent
+# 模擬與 agent 的對話
 USER_INPUTS = [
     "Who is the youngest employee?",
     "Who works in sales?",
@@ -27,53 +31,56 @@ async def main() -> None:
         DefaultAzureCredential() as creds,
         AzureAIAgent.create_client(credential=creds) as client,
     ):
-        # 1. Read and upload the file to the Azure AI agent service
+        # 1. 讀取並上傳檔案到 Azure AI Agent 服務
         pdf_file_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "resources", "employees.pdf"
+            os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+            "resources",
+            "employees.pdf",
         )
-        file: FileInfo = await client.agents.files.upload_and_poll(file_path=pdf_file_path, purpose="assistants")
+        file: FileInfo = await client.agents.files.upload_and_poll(
+            file_path=pdf_file_path, purpose="assistants"
+        )
         vector_store: VectorStore = await client.agents.vector_stores.create_and_poll(
             file_ids=[file.id], name="my_vectorstore"
         )
 
-        # 2. Create file search tool with uploaded resources
+        # 2. 使用上傳資源建立檔案搜尋工具
         file_search = FileSearchTool(vector_store_ids=[vector_store.id])
 
-        # 3. Create an agent on the Azure AI agent service with the file search tool
+        # 3. 在 Azure AI Agent 服務建立包含檔案搜尋工具的 agent
         agent_definition = await client.agents.create_agent(
             model=AzureAIAgentSettings().model_deployment_name,
             tools=file_search.definitions,
             tool_resources=file_search.resources,
         )
 
-        # 4. Create a Semantic Kernel agent for the Azure AI agent
+        # 4. 建立 Semantic Kernel 對應的 Azure AI Agent
         agent = AzureAIAgent(
             client=client,
             definition=agent_definition,
         )
 
-        # 5. Create a thread for the agent
-        # If no thread is provided, a new thread will be
-        # created and returned with the initial response
+        # 5. 建立 agent 對話執行緒
+        # 若未提供執行緒，系統將建立並回傳含初始回應的新執行緒
         thread: AzureAIAgentThread = None
 
         try:
             for user_input in USER_INPUTS:
                 print(f"# User: '{user_input}'")
-                # 6. Invoke the agent for the specified thread for response
+                # 6. 以指定執行緒呼叫 agent 取得回應
                 async for response in agent.invoke(messages=user_input, thread=thread):
                     if response.role != AuthorRole.TOOL:
                         print(f"# Agent: {response}")
                     thread = response.thread
         finally:
-            # 7. Cleanup: Delete the thread and agent and other resources
+            # 7. 清理資源：刪除執行緒、向量資料庫、檔案及 agent
             await thread.delete() if thread else None
             await client.agents.vector_stores.delete(vector_store.id)
             await client.agents.files.delete(file.id)
             await client.agents.delete_agent(agent.id)
 
         """
-        Sample Output:
+        範例輸出：
         # User: 'Who is the youngest employee?'
         # Agent: The youngest employee is Teodor Britton, who is an accountant and was born on January 9, 1997...
         # User: 'Who works in sales?'

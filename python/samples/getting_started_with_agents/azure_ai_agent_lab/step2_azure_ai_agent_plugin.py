@@ -9,14 +9,14 @@ from semantic_kernel.agents import AzureAIAgent, AzureAIAgentSettings
 from semantic_kernel.functions import kernel_function
 
 """
-The following sample demonstrates how to create an Azure AI agent that answers
-questions about a sample menu using a Semantic Kernel Plugin.
+以下範例示範如何建立一個使用 Semantic Kernel 外掛程式來回答
+範例選單問題的 Azure AI 代理程式。
 """
 
 
-# Define a sample plugin for the sample
+# 為範例定義一個範例外掛程式
 class MenuPlugin:
-    """A sample Menu Plugin used for the concept sample."""
+    """用於概念範例的選單外掛程式範例。"""
 
     @kernel_function(description="Provides a list of specials from the menu.")
     def get_specials(self) -> Annotated[str, "Returns the specials from the menu."]:
@@ -33,7 +33,7 @@ class MenuPlugin:
         return "$9.99"
 
 
-# Simulate a conversation with the agent
+# 模擬與代理程式的對話
 USER_INPUTS = [
     "Hello",
     "What is the special soup?",
@@ -47,29 +47,29 @@ async def main() -> None:
         DefaultAzureCredential() as creds,
         AzureAIAgent.create_client(credential=creds) as client,
     ):
-        # 1. Create an agent on the Azure AI agent service
+        # 1. 在 Azure AI 代理程式服務上建立一個代理程式
         agent_definition = await client.agents.create_agent(
             model=AzureAIAgentSettings().model_deployment_name,
             name="Host",
             instructions="Answer questions about the menu.",
         )
 
-        # 2. Create a Semantic Kernel agent for the Azure AI agent
+        # 2. 為 Azure AI 代理程式建立一個 Semantic Kernel 代理程式
         agent = AzureAIAgent(
             client=client,
             definition=agent_definition,
-            plugins=[MenuPlugin()],  # Add the plugin to the agent
+            plugins=[MenuPlugin()],  # 將外掛程式加入代理程式
         )
 
-        # 3. Create a thread for the agent
-        # If no thread is provided, a new thread will be
-        # created and returned with the initial response
+        # 3. 為代理程式建立一個對話執行緒
+        # 如果沒有提供執行緒，會建立一個新的執行緒
+        # 並隨著初始回應一起回傳
         thread = None
 
         try:
             for user_input in USER_INPUTS:
                 print(f"# User: {user_input}")
-                # 4. Invoke the agent for the specified thread for response
+                # 4. 為指定的執行緒呼叫代理程式以取得回應
                 async for response in agent.invoke(
                     messages=user_input,
                     thread=thread,
@@ -77,12 +77,12 @@ async def main() -> None:
                     print(f"# {response.name}: {response}")
                     thread = response.thread
         finally:
-            # 5. Cleanup: Delete the thread and agent
+            # 5. 清理：刪除執行緒和代理程式
             await thread.delete() if thread else None
             await client.agents.delete_agent(agent.id)
 
         """
-        Sample Output:
+        範例輸出：
         # User: Hello
         # Agent: Hello! How can I assist you today?
         # User: What is the special soup?
