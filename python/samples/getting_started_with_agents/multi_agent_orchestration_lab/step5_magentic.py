@@ -14,46 +14,45 @@ from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion, OpenAISe
 from semantic_kernel.contents import ChatMessageContent
 
 """
-The following sample demonstrates how to create a Magentic orchestration with two agents:
-- A Research agent that can perform web searches
-- A Coder agent that can run code using the code interpreter
+以下範例示範如何建立具有兩個代理程式的 Magentic 編排：
+- 可執行網路搜尋的研究代理程式
+- 可使用程式碼解釋器執行程式碼的編碼代理程式
 
-Read more about Magentic here:
+在此處閱讀更多關於 Magentic 的資訊：
 https://www.microsoft.com/en-us/research/articles/magentic-one-a-generalist-multi-agent-system-for-solving-complex-tasks/
 
-This sample demonstrates the basic steps of creating and starting a runtime, creating
-a Magentic orchestration with two agents and a Magentic manager, invoking the
-orchestration, and finally waiting for the results.
+此範例示範建立和啟動運行時、建立具有兩個代理程式和 Magentic 管理員的 Magentic 編排、
+呼叫編排，以及最後等待結果的基本步驟。
 
-The Magentic manager requires a chat completion model that supports structured output.
+Magentic 管理員需要支援結構化輸出的聊天完成模型。
 """
 
 
 async def agents() -> list[Agent]:
-    """Return a list of agents that will participate in the Magentic orchestration.
+    """回傳將參與 Magentic 編排的代理程式清單。
 
-    Feel free to add or remove agents.
+    您可以自由新增或移除代理程式。
     """
     research_agent = ChatCompletionAgent(
         name="ResearchAgent",
-        description="A helpful assistant with access to web search. Ask it to perform web searches.",
-        instructions=(
-            "You are a Researcher. You find information without additional computation or quantitative analysis."
-        ),
-        # This agent requires the gpt-4o-search-preview model to perform web searches.
-        # Feel free to explore with other agents that support web search, for example,
-        # the `OpenAIResponseAgent` or `AzureAIAgent` with bing grounding.
+        description="具有網路搜尋存取權限的有用助手。請求它執行網路搜尋。",
+        instructions=("您是研究員。您尋找資訊而不進行額外的計算或量化分析。"),
+        # 此代理程式需要 gpt-4o-search-preview 模型來執行網路搜尋。
+        # 歡迎探索其他支援網路搜尋的代理程式，例如，
+        # 具有 bing 基礎的 `OpenAIResponseAgent` 或 `AzureAIAgent`。
         service=OpenAIChatCompletion(ai_model_id="gpt-4o-search-preview"),
     )
 
-    # Create an OpenAI Assistant agent with code interpreter capability
+    # 建立具有程式碼解釋器功能的 OpenAI Assistant 代理程式
     client = OpenAIAssistantAgent.create_client()
-    code_interpreter_tool, code_interpreter_tool_resources = OpenAIAssistantAgent.configure_code_interpreter_tool()
+    code_interpreter_tool, code_interpreter_tool_resources = (
+        OpenAIAssistantAgent.configure_code_interpreter_tool()
+    )
     definition = await client.beta.assistants.create(
         model=OpenAISettings().chat_model_id,
         name="CoderAgent",
-        description="A helpful assistant that writes and executes code to process and analyze data.",
-        instructions="You solve questions using code. Please provide detailed analysis and computation process.",
+        description="撰寫和執行程式碼來處理和分析資料的有用助手。",
+        instructions="您使用程式碼解決問題。請提供詳細的分析和計算過程。",
         tools=code_interpreter_tool,
         tool_resources=code_interpreter_tool_resources,
     )
@@ -66,130 +65,95 @@ async def agents() -> list[Agent]:
 
 
 def agent_response_callback(message: ChatMessageContent) -> None:
-    """Observer function to print the messages from the agents."""
+    """觀察函數，用於列印來自代理程式的訊息。"""
     print(f"**{message.name}**\n{message.content}")
 
 
 async def main():
-    """Main function to run the agents."""
-    # 1. Create a Magentic orchestration with two agents and a Magentic manager
-    # Note, the Standard Magentic manager uses prompts that have been tuned very
-    # carefully but it accepts custom prompts for advanced users and scenarios.
-    # For even more advanced scenarios, you can subclass the MagenticManagerBase
-    # and implement your own manager logic.
-    # The standard manager also requires a chat completion model that supports
-    # structured output.
+    """執行代理程式的主要函數。"""
+    # 1. 建立具有兩個代理程式和 Magentic 管理員的 Magentic 編排
+    # 注意，標準 Magentic 管理員使用經過精心調整的提示，
+    # 但對於進階使用者和情境，它接受自訂提示。
+    # 對於更進階的情境，您可以子類化 MagenticManagerBase
+    # 並實作您自己的管理員邏輯。
+    # 標準管理員也需要支援結構化輸出的聊天完成模型。
     magentic_orchestration = MagenticOrchestration(
         members=await agents(),
         manager=StandardMagenticManager(chat_completion_service=OpenAIChatCompletion()),
         agent_response_callback=agent_response_callback,
     )
 
-    # 2. Create a runtime and start it
+    # 2. 建立運行時並啟動
     runtime = InProcessRuntime()
     runtime.start()
 
-    # 3. Invoke the orchestration with a task and the runtime
+    # 3. 使用任務和運行時呼叫編排
     orchestration_result = await magentic_orchestration.invoke(
         task=(
-            "I am preparing a report on the energy efficiency of different machine learning model architectures. "
-            "Compare the estimated training and inference energy consumption of ResNet-50, BERT-base, and GPT-2 "
-            "on standard datasets (e.g., ImageNet for ResNet, GLUE for BERT, WebText for GPT-2). "
-            "Then, estimate the CO2 emissions associated with each, assuming training on an Azure Standard_NC6s_v3 VM "
-            "for 24 hours. Provide tables for clarity, and recommend the most energy-efficient model "
-            "per task type (image classification, text classification, and text generation)."
+            "我正在準備一份關於不同機器學習模型架構能源效率的報告。"
+            "比較在標準資料集上 ResNet-50、BERT-base 和 GPT-2 的預估訓練和推論能源消耗"
+            "（例如，ResNet 使用 ImageNet、BERT 使用 GLUE、GPT-2 使用 WebText）。"
+            "然後，假設在 Azure Standard_NC6s_v3 VM 上訓練 24 小時，估算與每個模型相關的 CO2 排放量。"
+            "為了清晰起見，請提供表格，並建議每種任務類型（影像分類、文字分類和文字生成）"
+            "最節能的模型。"
         ),
         runtime=runtime,
     )
 
-    # 4. Wait for the results
+    # 4. 等待結果
     value = await orchestration_result.get()
 
-    print(f"\nFinal result:\n{value}")
+    print(f"\n最終結果：\n{value}")
 
-    # 5. Stop the runtime when idle
+    # 5. 閒置時停止運行時
     await runtime.stop_when_idle()
 
     """
-    Sample output:
+    範例輸出：
     **ResearchAgent**
-    Estimating the energy consumption and associated CO₂ emissions for training and inference of ResNet-50, BERT-base...
+    估算 ResNet-50、BERT-base 的訓練和推論能源消耗以及相關的 CO₂ 排放量...
 
     **CoderAgent**
-    Here is the comparison of energy consumption and CO₂ emissions for each model (ResNet-50, BERT-base, and GPT-2)
-    over a 24-hour period:
+    這是每個模型（ResNet-50、BERT-base 和 GPT-2）在 24 小時期間的能源消耗和 CO₂ 排放量比較：
 
-    | Model     | Training Energy (kWh) | Inference Energy (kWh) | Total Energy (kWh) | CO₂ Emissions (kg) |
-    |-----------|------------------------|------------------------|---------------------|---------------------|
-    | ResNet-50 | 21.11                  | 0.08232                | 21.19232            | 19.50               |
-    | BERT-base | 0.048                  | 0.23736                | 0.28536             | 0.26                |
-    | GPT-2     | 42.22                  | 0.35604                | 42.57604            | 39.17               |
+    | 模型     | 訓練能源 (kWh) | 推論能源 (kWh) | 總能源 (kWh) | CO₂ 排放 (kg) |
+    |----------|---------------|---------------|-------------|---------------|
+    | ResNet-50| 21.11         | 0.08232       | 21.19232    | 19.50         |
+    | BERT-base| 0.048         | 0.23736       | 0.28536     | 0.26          |
+    | GPT-2    | 42.22         | 0.35604       | 42.57604    | 39.17         |
 
-    ### Recommendations:
+    ### 建議：
     ...
 
     **CoderAgent**
-    Here are the recalibrated results for energy consumption and CO₂ emissions, assuming a more conservative approach
-    for models like GPT-2:
+    這是根據 Azure 西歐和瑞典中部地區碳強度資料，對 ResNet-50、BERT-base 和 GPT-2 的
+    能源消耗和 CO₂ 排放量的精細比較表：
 
-    | Model            | Training Energy (kWh) | Inference Energy (kWh) | Total Energy (kWh) | CO₂ Emissions (kg) |
-    |------------------|------------------------|------------------------|---------------------|---------------------|
-    | ResNet-50        | 21.11                  | 0.08232                | 21.19232            | 19.50               |
-    | BERT-base        | 0.048                  | 0.23736                | 0.28536             | 0.26                |
-    | GPT-2 (Adjusted) | 42.22                  | 0.35604                | 42.57604            | 39.17               |
+    | 模型      | 能源 (kWh) | CO₂ 排放西歐 (kg) | CO₂ 排放瑞典中部 (kg) |
+    |-----------|------------|-------------------|----------------------|
+    | ResNet-50 | 5.76       | 0.639             | 0.086                |
+    | BERT-base | 9.18       | 1.019             | 0.138                |
+    | GPT-2     | 12.96      | 1.439             | 0.194                |
 
-    ...
-
-    **ResearchAgent**
-    Estimating the energy consumption and associated CO₂ emissions for training and inference of machine learning ...
-
-    **ResearchAgent**
-    Estimating the energy consumption and CO₂ emissions of training and inference for ResNet-50, BERT-base, and ...
-
-    **CoderAgent**
-    Here is the estimated energy use and CO₂ emissions for a full day of operation for each model on an Azure ...
-
-    **ResearchAgent**
-    Recent analyses have highlighted the substantial energy consumption and carbon emissions associated with ...
-
-    **CoderAgent**
-    Here's the refined estimation for the energy use and CO₂ emissions for optimized models on an Azure ...
-
-    **CoderAgent**
-    To provide precise estimates for CO₂ emissions based on Azure's regional data centers' carbon intensity, we need ...
-
-    **ResearchAgent**
-    To refine the CO₂ emission estimates for training and inference of ResNet-50, BERT-base, and GPT-2 on an Azure ...
-
-    **CoderAgent**
-    Here's the refined comparative table for energy consumption and CO₂ emissions for ResNet-50, BERT-base, and GPT-2,
-    taking into account carbon intensity data for Azure's West Europe and Sweden Central regions:
-
-    | Model      | Energy (kWh) | CO₂ Emissions West Europe (kg) | CO₂ Emissions Sweden Central (kg) |
-    |------------|--------------|--------------------------------|-----------------------------------|
-    | ResNet-50  | 5.76         | 0.639                          | 0.086                            |
-    | BERT-base  | 9.18         | 1.019                          | 0.138                            |
-    | GPT-2      | 12.96        | 1.439                          | 0.194                            |
-
-    **Refined Recommendations:**
+    **精細建議：**
 
     ...
 
-    Final result:
-    Here is the comprehensive report on energy efficiency and CO₂ emissions for ResNet-50, BERT-base, and GPT-2 models
-    when trained and inferred on an Azure Standard_NC6s_v3 VM for 24 hours.
+    最終結果：
+    這是在 Azure Standard_NC6s_v3 VM 上訓練和推論 24 小時的 ResNet-50、BERT-base 和 GPT-2 模型
+    能源效率和 CO₂ 排放量的綜合報告。
 
-    ### Energy Consumption and CO₂ Emissions:
+    ### 能源消耗和 CO₂ 排放：
 
-    Based on refined analyses, here are the estimated energy consumption and CO₂ emissions for each model:
+    基於精細分析，這是每個模型的預估能源消耗和 CO₂ 排放量：
 
-    | Model      | Energy (kWh) | CO₂ Emissions West Europe (kg) | CO₂ Emissions Sweden Central (kg) |
-    |------------|--------------|--------------------------------|-----------------------------------|
-    | ResNet-50  | 5.76         | 0.639                          | 0.086                            |
-    | BERT-base  | 9.18         | 1.019                          | 0.138                            |
-    | GPT-2      | 12.96        | 1.439                          | 0.194                            |
+    | 模型      | 能源 (kWh) | CO₂ 排放西歐 (kg) | CO₂ 排放瑞典中部 (kg) |
+    |-----------|------------|-------------------|----------------------|
+    | ResNet-50 | 5.76       | 0.639             | 0.086                |
+    | BERT-base | 9.18       | 1.019             | 0.138                |
+    | GPT-2     | 12.96      | 1.439             | 0.194                |
 
-    ### Recommendations for Energy Efficiency:
+    ### 能源效率建議：
 
     ...
     """

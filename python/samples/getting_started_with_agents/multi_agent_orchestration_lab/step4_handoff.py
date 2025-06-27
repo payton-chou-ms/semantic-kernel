@@ -2,147 +2,159 @@
 
 import asyncio
 
-from semantic_kernel.agents import Agent, ChatCompletionAgent, HandoffOrchestration, OrchestrationHandoffs
+from semantic_kernel.agents import (
+    Agent,
+    ChatCompletionAgent,
+    HandoffOrchestration,
+    OrchestrationHandoffs,
+)
 from semantic_kernel.agents.runtime import InProcessRuntime
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
-from semantic_kernel.contents import AuthorRole, ChatMessageContent, FunctionCallContent, FunctionResultContent
+from semantic_kernel.contents import (
+    AuthorRole,
+    ChatMessageContent,
+    FunctionCallContent,
+    FunctionResultContent,
+)
 from semantic_kernel.functions import kernel_function
 
 """
-The following sample demonstrates how to create a handoff orchestration that represents
-a customer support triage system. The orchestration consists of 4 agents, each specialized
-in a different area of customer support: triage, refunds, order status, and order returns.
+以下範例示範如何建立代表客戶支援分流系統的移交編排。
+編排由4個代理程式組成，每個都專精於客戶支援的不同領域：
+分流、退款、訂單狀態和訂單退貨。
 
-Depending on the customer's request, agents can hand off the conversation to the appropriate
-agent.
+根據客戶的請求，代理程式可以將對話移交給適當的代理程式。
 
-Human in the loop is achieved via a callback function similar to the one used in group chat
-orchestration. Except that in the handoff orchestration, all agents have access to the
-human response function, whereas in the group chat orchestration, only the manager has access
-to the human response function.
+人類參與迴圈是透過回調函數實現的，類似於群組聊天編排中使用的函數。
+不同之處在於，在移交編排中，所有代理程式都可以存取人類回應函數，
+而在群組聊天編排中，只有管理員可以存取人類回應函數。
 
-This sample demonstrates the basic steps of creating and starting a runtime, creating
-a handoff orchestration, invoking the orchestration, and finally waiting for the results.
+此範例示範建立和啟動運行時、建立移交編排、
+呼叫編排，以及最後等待結果的基本步驟。
 """
 
 
 class OrderStatusPlugin:
     @kernel_function
     def check_order_status(self, order_id: str) -> str:
-        """Check the status of an order."""
-        # Simulate checking the order status
-        return f"Order {order_id} is shipped and will arrive in 2-3 days."
+        """檢查訂單狀態。"""
+        # 模擬檢查訂單狀態
+        return f"訂單 {order_id} 已出貨，將在2-3天內到達。"
 
 
 class OrderRefundPlugin:
     @kernel_function
     def process_refund(self, order_id: str, reason: str) -> str:
-        """Process a refund for an order."""
-        # Simulate processing a refund
-        print(f"Processing refund for order {order_id} due to: {reason}")
-        return f"Refund for order {order_id} has been processed successfully."
+        """處理訂單退款。"""
+        # 模擬處理退款
+        print(f"正在處理訂單 {order_id} 的退款，原因：{reason}")
+        return f"訂單 {order_id} 的退款已成功處理。"
 
 
 class OrderReturnPlugin:
     @kernel_function
     def process_return(self, order_id: str, reason: str) -> str:
-        """Process a return for an order."""
-        # Simulate processing a return
-        print(f"Processing return for order {order_id} due to: {reason}")
-        return f"Return for order {order_id} has been processed successfully."
+        """處理訂單退貨。"""
+        # 模擬處理退貨
+        print(f"正在處理訂單 {order_id} 的退貨，原因：{reason}")
+        return f"訂單 {order_id} 的退貨已成功處理。"
 
 
 def get_agents() -> tuple[list[Agent], OrchestrationHandoffs]:
-    """Return a list of agents that will participate in the Handoff orchestration and the handoff relationships.
+    """回傳將參與移交編排的代理程式清單和移交關係。
 
-    Feel free to add or remove agents and handoff connections.
+    您可以自由新增或移除代理程式和移交連線。
     """
     support_agent = ChatCompletionAgent(
         name="TriageAgent",
-        description="A customer support agent that triages issues.",
-        instructions="Handle customer requests.",
+        description="分流問題的客戶支援代理程式。",
+        instructions="處理客戶請求。",
         service=AzureChatCompletion(),
     )
 
     refund_agent = ChatCompletionAgent(
         name="RefundAgent",
-        description="A customer support agent that handles refunds.",
-        instructions="Handle refund requests.",
+        description="處理退款的客戶支援代理程式。",
+        instructions="處理退款請求。",
         service=AzureChatCompletion(),
         plugins=[OrderRefundPlugin()],
     )
 
     order_status_agent = ChatCompletionAgent(
         name="OrderStatusAgent",
-        description="A customer support agent that checks order status.",
-        instructions="Handle order status requests.",
+        description="檢查訂單狀態的客戶支援代理程式。",
+        instructions="處理訂單狀態請求。",
         service=AzureChatCompletion(),
         plugins=[OrderStatusPlugin()],
     )
 
     order_return_agent = ChatCompletionAgent(
         name="OrderReturnAgent",
-        description="A customer support agent that handles order returns.",
-        instructions="Handle order return requests.",
+        description="處理訂單退貨的客戶支援代理程式。",
+        instructions="處理訂單退貨請求。",
         service=AzureChatCompletion(),
         plugins=[OrderReturnPlugin()],
     )
 
-    # Define the handoff relationships between agents
+    # 定義代理程式之間的移交關係
     handoffs = (
         OrchestrationHandoffs()
         .add_many(
             source_agent=support_agent.name,
             target_agents={
-                refund_agent.name: "Transfer to this agent if the issue is refund related",
-                order_status_agent.name: "Transfer to this agent if the issue is order status related",
-                order_return_agent.name: "Transfer to this agent if the issue is order return related",
+                refund_agent.name: "如果問題與退款相關，轉移到此代理程式",
+                order_status_agent.name: "如果問題與訂單狀態相關，轉移到此代理程式",
+                order_return_agent.name: "如果問題與訂單退貨相關，轉移到此代理程式",
             },
         )
         .add(
             source_agent=refund_agent.name,
             target_agent=support_agent.name,
-            description="Transfer to this agent if the issue is not refund related",
+            description="如果問題與退款無關，轉移到此代理程式",
         )
         .add(
             source_agent=order_status_agent.name,
             target_agent=support_agent.name,
-            description="Transfer to this agent if the issue is not order status related",
+            description="如果問題與訂單狀態無關，轉移到此代理程式",
         )
         .add(
             source_agent=order_return_agent.name,
             target_agent=support_agent.name,
-            description="Transfer to this agent if the issue is not order return related",
+            description="如果問題與訂單退貨無關，轉移到此代理程式",
         )
     )
 
-    return [support_agent, refund_agent, order_status_agent, order_return_agent], handoffs
+    return [
+        support_agent,
+        refund_agent,
+        order_status_agent,
+        order_return_agent,
+    ], handoffs
 
 
 def agent_response_callback(message: ChatMessageContent) -> None:
-    """Observer function to print the messages from the agents.
+    """觀察函數，用於列印來自代理程式的訊息。
 
-    Please note that this function is called whenever the agent generates a response,
-    including the internal processing messages (such as tool calls) that are not visible
-    to other agents in the orchestration.
+    請注意，此函數會在代理程式產生回應時被呼叫，
+    包括編排中其他代理程式不可見的內部處理訊息（如工具呼叫）。
     """
     print(f"{message.name}: {message.content}")
     for item in message.items:
         if isinstance(item, FunctionCallContent):
-            print(f"Calling '{item.name}' with arguments '{item.arguments}'")
+            print(f"正在呼叫 '{item.name}'，參數為 '{item.arguments}'")
         if isinstance(item, FunctionResultContent):
-            print(f"Result from '{item.name}' is '{item.result}'")
+            print(f"來自 '{item.name}' 的結果為 '{item.result}'")
 
 
 def human_response_function() -> ChatMessageContent:
-    """Observer function to print the messages from the agents."""
-    user_input = input("User: ")
+    """觀察函數，用於列印來自代理程式的訊息。"""
+    user_input = input("使用者：")
     return ChatMessageContent(role=AuthorRole.USER, content=user_input)
 
 
 async def main():
-    """Main function to run the agents."""
-    # 1. Create a handoff orchestration with multiple agents
+    """執行代理程式的主要函數。"""
+    # 1. 建立具有多個代理程式的移交編排
     agents, handoffs = get_agents()
     handoff_orchestration = HandoffOrchestration(
         members=agents,
@@ -151,67 +163,63 @@ async def main():
         human_response_function=human_response_function,
     )
 
-    # 2. Create a runtime and start it
+    # 2. 建立運行時並啟動
     runtime = InProcessRuntime()
     runtime.start()
 
-    # 3. Invoke the orchestration with a task and the runtime
+    # 3. 使用任務和運行時呼叫編排
     orchestration_result = await handoff_orchestration.invoke(
-        task="Greet the customer who is reaching out for support.",
+        task="問候尋求支援的客戶。",
         runtime=runtime,
     )
 
-    # 4. Wait for the results
+    # 4. 等待結果
     value = await orchestration_result.get()
     print(value)
 
-    # 5. Stop the runtime after the invocation is complete
+    # 5. 呼叫完成後停止運行時
     await runtime.stop_when_idle()
 
     """
-    Sample output:
-    TriageAgent: Hello! Thank you for reaching out for support. How can I assist you today?
-    User: I'd like to track the status of my order
+    範例輸出：
+    TriageAgent: 您好！感謝您聯繫尋求支援。今天我能如何協助您？
+    使用者：我想要追蹤我的訂單狀態
     TriageAgent:
-    Calling 'Handoff-transfer_to_OrderStatusAgent' with arguments '{}'
+    正在呼叫 'Handoff-transfer_to_OrderStatusAgent'，參數為 '{}'
     TriageAgent:
-    Result from 'Handoff-transfer_to_OrderStatusAgent' is 'None'
-    OrderStatusAgent: Could you please provide me with your order ID so I can check the status for you?
-    User: My order ID is 123
+    來自 'Handoff-transfer_to_OrderStatusAgent' 的結果為 'None'
+    OrderStatusAgent: 您能否提供您的訂單編號，讓我為您檢查狀態？
+    使用者：我的訂單編號是 123
     OrderStatusAgent:
-    Calling 'OrderStatusPlugin-check_order_status' with arguments '{"order_id":"123"}'
+    正在呼叫 'OrderStatusPlugin-check_order_status'，參數為 '{"order_id":"123"}'
     OrderStatusAgent:
-    Result from 'OrderStatusPlugin-check_order_status' is 'Order 123 is shipped and will arrive in 2-3 days.'
-    OrderStatusAgent: Your order with ID 123 has been shipped and is expected to arrive in 2-3 days. If you have any
-        more questions, feel free to ask!
-    User: I want to return another order of mine
-    OrderStatusAgent: I can help you with that. Could you please provide me with the order ID of the order you want
-        to return?
-    User: Order ID 321
+    來自 'OrderStatusPlugin-check_order_status' 的結果為 '訂單 123 已出貨，將在2-3天內到達。'
+    OrderStatusAgent: 您的訂單編號 123 已經出貨，預計在2-3天內到達。如果您有更多問題，隨時提出！
+    使用者：我想要退貨我的另一個訂單
+    OrderStatusAgent: 我可以協助您。您能否提供您想要退貨的訂單編號？
+    使用者：訂單編號 321
     OrderStatusAgent:
-    Calling 'Handoff-transfer_to_TriageAgent' with arguments '{}'
+    正在呼叫 'Handoff-transfer_to_TriageAgent'，參數為 '{}'
     OrderStatusAgent:
-    Result from 'Handoff-transfer_to_TriageAgent' is 'None'
+    來自 'Handoff-transfer_to_TriageAgent' 的結果為 'None'
     TriageAgent:
-    Calling 'Handoff-transfer_to_OrderReturnAgent' with arguments '{}'
+    正在呼叫 'Handoff-transfer_to_OrderReturnAgent'，參數為 '{}'
     TriageAgent:
-    Result from 'Handoff-transfer_to_OrderReturnAgent' is 'None'
-    OrderReturnAgent: Could you please provide me with the reason for the return for order ID 321?
-    User: Broken item
-    Processing return for order 321 due to: Broken item
+    來自 'Handoff-transfer_to_OrderReturnAgent' 的結果為 'None'
+    OrderReturnAgent: 您能否提供訂單編號 321 的退貨原因？
+    使用者：商品損壞
+    正在處理訂單 321 的退貨，原因：商品損壞
     OrderReturnAgent:
-    Calling 'OrderReturnPlugin-process_return' with arguments '{"order_id":"321","reason":"Broken item"}'
+    正在呼叫 'OrderReturnPlugin-process_return'，參數為 '{"order_id":"321","reason":"商品損壞"}'
     OrderReturnAgent:
-    Result from 'OrderReturnPlugin-process_return' is 'Return for order 321 has been processed successfully.'
-    OrderReturnAgent: The return for order ID 321 has been processed successfully due to a broken item. If you need
-        further assistance or have any other questions, feel free to let me know!
-    User: No, bye
-    Task is completed with summary: Processed the return request for order ID 321 due to a broken item.
+    來自 'OrderReturnPlugin-process_return' 的結果為 '訂單 321 的退貨已成功處理。'
+    OrderReturnAgent: 訂單編號 321 因商品損壞的退貨已成功處理。如果您需要進一步協助或有其他問題，請隨時告訴我！
+    使用者：不用了，再見
+    任務已完成，摘要：處理了訂單編號 321 因商品損壞的退貨請求。
     OrderReturnAgent:
-    Calling 'Handoff-complete_task' with arguments '{"task_summary":"Processed the return request for order ID 321
-        due to a broken item."}'
+    正在呼叫 'Handoff-complete_task'，參數為 '{"task_summary":"處理了訂單編號 321 因商品損壞的退貨請求。"}'
     OrderReturnAgent:
-    Result from 'Handoff-complete_task' is 'None'
+    來自 'Handoff-complete_task' 的結果為 'None'
     """
 
 
