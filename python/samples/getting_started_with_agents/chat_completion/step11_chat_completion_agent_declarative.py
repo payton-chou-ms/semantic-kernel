@@ -1,13 +1,23 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 import asyncio
+import os
 from typing import Annotated
+from dotenv import load_dotenv
 
 from semantic_kernel import Kernel
 from semantic_kernel.agents import AgentRegistry, ChatHistoryAgentThread
-from semantic_kernel.agents.chat_completion.chat_completion_agent import ChatCompletionAgent
-from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
+from semantic_kernel.agents.chat_completion.chat_completion_agent import (
+    ChatCompletionAgent,
+)
+from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.functions import kernel_function
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Constants
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 
 """
 The following sample demonstrates how to create a chat completion agent using a 
@@ -68,7 +78,9 @@ async def main():
 
     # 5. Create the agent from YAML + inject the AI service
     agent: ChatCompletionAgent = await AgentRegistry.create_from_yaml(
-        AGENT_YAML, kernel=kernel, service=OpenAIChatCompletion()
+        AGENT_YAML,
+        kernel=kernel,
+        service=AzureChatCompletion(endpoint=MY_AZURE_OPENAI_ENDPOINT),
     )
 
     # 6. Create a thread to hold the conversation
