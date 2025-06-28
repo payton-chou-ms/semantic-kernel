@@ -2,18 +2,19 @@
 
 import asyncio
 import logging
-<<<<<<< HEAD
-
-from azure.identity import AzureCliCredential
 import os
 from dotenv import load_dotenv
-=======
->>>>>>> 9ae4e1858 (move samples\concepts\agents\azure_ai_agent to  samples\concepts\agents\azure_ai_agent_lab)
 
 from semantic_kernel import Kernel
 from semantic_kernel.agents import AgentGroupChat, ChatCompletionAgent
 from semantic_kernel.agents.strategies import TerminationStrategy
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Constants
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 
 """
 The following sample demonstrates how to create a simple, agent group chat that
@@ -48,11 +49,8 @@ class ApprovalTerminationStrategy(TerminationStrategy):
 def _create_kernel_with_chat_completion(service_id: str) -> Kernel:
     kernel = Kernel()
     kernel.add_service(
-        AzureChatCompletion(service_id=service_id, credential=AzureCliCredential())
+        AzureChatCompletion(endpoint=MY_AZURE_OPENAI_ENDPOINT, service_id=service_id)
     )
-    # kernel.add_service(
-    #     AzureChatCompletion(endpoint=MY_AZURE_OPENAI_ENDPOINT, service_id=service_id)
-    # )
     return kernel
 
 
@@ -95,7 +93,9 @@ async def main():
     # 3. Place the agents in a group chat with a custom termination strategy
     group_chat = AgentGroupChat(
         agents=[agent_writer, agent_reviewer],
-        termination_strategy=ApprovalTerminationStrategy(agents=[agent_reviewer], maximum_iterations=10),
+        termination_strategy=ApprovalTerminationStrategy(
+            agents=[agent_reviewer], maximum_iterations=10
+        ),
     )
 
     # 4. Add the task as a message to the group chat

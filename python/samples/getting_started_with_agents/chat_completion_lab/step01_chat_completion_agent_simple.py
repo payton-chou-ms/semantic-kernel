@@ -1,12 +1,17 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 import asyncio
-
-from azure.identity import AzureCliCredential
+import os
+from dotenv import load_dotenv
 
 from semantic_kernel.agents import ChatCompletionAgent
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 
+# Load environment variables from .env file
+load_dotenv()
+
+# Constants
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 """
 The following sample demonstrates how to create a chat completion agent that
 answers user questions using the Azure Chat Completion service. The Chat Completion
@@ -28,24 +33,12 @@ USER_INPUTS = [
 async def main():
     # 1. Create the agent by specifying the service
     agent = ChatCompletionAgent(
-        service=AzureChatCompletion(credential=AzureCliCredential()),
+        service=AzureChatCompletion(
+            endpoint=MY_AZURE_OPENAI_ENDPOINT,
+        ),
         name="Assistant",
         instructions="Answer questions about the world in one sentence.",
     )
-
-    # agent = ChatCompletionAgent(
-    #     service=AzureChatCompletion(),
-    #     name="Assistant",
-    #     instructions="Answer questions about the world in one sentence.",
-    # )
-
-    # agent = ChatCompletionAgent(
-    #     service=AzureChatCompletion(
-    #         endpoint=MY_AZURE_OPENAI_ENDPOINT,
-    #     ),
-    #     name="Assistant",
-    #     instructions="Answer questions about the world in one sentence.",
-    # )
 
     for user_input in USER_INPUTS:
         print(f"# User: {user_input}")

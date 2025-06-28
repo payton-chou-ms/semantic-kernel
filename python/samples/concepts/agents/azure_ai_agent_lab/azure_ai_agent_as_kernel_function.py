@@ -1,8 +1,10 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 import asyncio
+import os
+from dotenv import load_dotenv
 
-from azure.identity import AzureCliCredential
+from azure.identity.aio import DefaultAzureCredential
 
 from semantic_kernel import Kernel
 from semantic_kernel.agents import (
@@ -29,12 +31,16 @@ async def function_invocation_filter(context: FunctionInvocationContext, next):
     if "messages" not in context.arguments:
         await next(context)
         return
-    print(f"    Agent [{context.function.name}] called with messages: {context.arguments['messages']}")
+    print(
+        f"    Agent [{context.function.name}] called with messages: {context.arguments['messages']}"
+    )
     await next(context)
     print(f"    Response from agent [{context.function.name}]: {context.result.value}")
 
 
-async def chat(triage_agent: ChatCompletionAgent, thread: ChatHistoryAgentThread = None) -> bool:
+async def chat(
+    triage_agent: ChatCompletionAgent, thread: ChatHistoryAgentThread = None
+) -> bool:
     """
     Continuously prompt the user for input and show the assistant's response.
     Type 'exit' to exit.
@@ -61,6 +67,12 @@ async def chat(triage_agent: ChatCompletionAgent, thread: ChatHistoryAgentThread
 
 
 async def main() -> None:
+    # Load environment variables from .env file
+    load_dotenv()
+
+    # Constants
+    MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
+
     # Create and configure the kernel.
     kernel = Kernel()
 
@@ -69,15 +81,10 @@ async def main() -> None:
 
     ai_agent_settings = AzureAIAgentSettings()
 
-    # async with (
-    #     DefaultAzureCredential() as creds,
-    #     AzureAIAgent.create_client(
-    #         credential=creds, endpoint=ai_agent_settings.endpoint
-    #     ) as client,
-    # ):
     async with (
+        DefaultAzureCredential() as creds,
         AzureAIAgent.create_client(
-            credential=credential, endpoint=ai_agent_settings.endpoint
+            credential=creds, endpoint=ai_agent_settings.endpoint
         ) as client,
     ):
         # Create the agent definition
@@ -100,7 +107,7 @@ async def main() -> None:
         )
 
         refund_agent = ChatCompletionAgent(
-            service=AzureChatCompletion(),
+            service=AzureChatCompletion(endpoint=MY_AZURE_OPENAI_ENDPOINT),
             name="RefundAgent",
             instructions=(
                 "You specialize in addressing customer inquiries regarding refunds. "
@@ -113,12 +120,7 @@ async def main() -> None:
         )
 
         triage_agent = ChatCompletionAgent(
-<<<<<<< HEAD
-            service=AzureChatCompletion(credential=credential),
-            # service=AzureChatCompletion(endpoint=MY_AZURE_OPENAI_ENDPOINT),
-=======
-            service=AzureChatCompletion(),
->>>>>>> 9ae4e1858 (move samples\concepts\agents\azure_ai_agent to  samples\concepts\agents\azure_ai_agent_lab)
+            service=AzureChatCompletion(endpoint=MY_AZURE_OPENAI_ENDPOINT),
             kernel=kernel,
             name="TriageAgent",
             instructions=(
@@ -133,7 +135,9 @@ async def main() -> None:
 
         thread: ChatHistoryAgentThread = None
 
-        print("Welcome to the chat bot!\n  Type 'exit' to exit.\n  Try to get some billing or refund help.")
+        print(
+            "Welcome to the chat bot!\n  Type 'exit' to exit.\n  Try to get some billing or refund help."
+        )
 
         chatting = True
         while chatting:

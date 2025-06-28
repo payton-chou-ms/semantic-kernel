@@ -2,8 +2,7 @@
 
 import asyncio
 import os
-
-from azure.identity import AzureCliCredential
+from dotenv import load_dotenv
 
 from semantic_kernel.agents import ChatCompletionAgent
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
@@ -13,6 +12,12 @@ from semantic_kernel.contents import (
     FunctionResultContent,
 )
 from semantic_kernel.core_plugins import SessionsPythonTool
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Constants
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 
 """
 The following sample demonstrates how to create a chat completion agent with
@@ -31,17 +36,14 @@ async def handle_intermediate_steps(message: ChatMessageContent) -> None:
 
 
 async def main():
-    credential = AzureCliCredential()
-
     # 1. Create the python code interpreter tool using the SessionsPythonTool
-    python_code_interpreter = SessionsPythonTool(credential=credential)
+    python_code_interpreter = SessionsPythonTool()
 
     # 2. Create the agent
     agent = ChatCompletionAgent(
-        service=AzureChatCompletion(credential=credential),
-        # service=AzureChatCompletion(
-        #     endpoint=MY_AZURE_OPENAI_ENDPOINT,
-        # ),
+        service=AzureChatCompletion(
+            endpoint=MY_AZURE_OPENAI_ENDPOINT,
+        ),
         name="Host",
         instructions="Answer questions about the menu.",
         plugins=[python_code_interpreter],
