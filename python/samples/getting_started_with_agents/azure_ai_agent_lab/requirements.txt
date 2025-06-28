@@ -1,5 +1,0 @@
-semantic-kernel
-azure-ai-agents
-azure-identity
-azure-core
-python-dotenv
