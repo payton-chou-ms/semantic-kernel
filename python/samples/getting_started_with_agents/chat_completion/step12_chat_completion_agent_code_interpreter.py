@@ -2,13 +2,24 @@
 
 import asyncio
 import os
+from dotenv import load_dotenv
 
 from azure.identity import AzureCliCredential
 
 from semantic_kernel.agents import ChatCompletionAgent
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
-from semantic_kernel.contents import ChatMessageContent, FunctionCallContent, FunctionResultContent
+from semantic_kernel.contents import (
+    ChatMessageContent,
+    FunctionCallContent,
+    FunctionResultContent,
+)
 from semantic_kernel.core_plugins import SessionsPythonTool
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Constants
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
 
 """
 The following sample demonstrates how to create a chat completion agent with
@@ -35,14 +46,23 @@ async def main():
     # 2. Create the agent
     agent = ChatCompletionAgent(
         service=AzureChatCompletion(credential=credential),
+        # service=AzureChatCompletion(
+        #     endpoint=MY_AZURE_OPENAI_ENDPOINT,
+        # ),
         name="Host",
         instructions="Answer questions about the menu.",
         plugins=[python_code_interpreter],
     )
 
     # 3. Upload a CSV file to the session
-    csv_file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "resources", "sales.csv")
-    file_metadata = await python_code_interpreter.upload_file(local_file_path=csv_file_path)
+    csv_file_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+        "resources",
+        "sales.csv",
+    )
+    file_metadata = await python_code_interpreter.upload_file(
+        local_file_path=csv_file_path
+    )
 
     # 4. Invoke the agent for a response to a task
     TASK = (
