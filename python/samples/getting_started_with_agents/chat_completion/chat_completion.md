@@ -1,4 +1,7 @@
 # Semantic Kernel Chat Completion Agent 範例總覽
+## Note:
+- step12_chat_completion_agent_code_interpreter.py 範例需要 Azure Container Apps 的支援，請參考相關文檔進行配置。
+目前還不能在本地環境執行
 
 ## Summary
 
