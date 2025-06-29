@@ -29,15 +29,8 @@
 ```bash
 # 檢查 Python 版本 (需要 3.8+)
 python --version
-
-# 檢查 pip 版本
-pip --version
 ```
-
-**最低需求**: Python 3.12.10+, pip 25.1.1+
-
-#### 支援的作業系統
-- Windows 11
+**最低需求**: Python 3.12.10+
 
 ### 2. 虛擬環境建立
 
@@ -51,7 +44,7 @@ python -m venv .myvenv
 .myvenv\Scripts\activate
 
 # macOS/Linux
-source .myvenv/Scripts/activate
+source .myvenv/bin/activate
 
 # 確認虛擬環境已啟動 (命令列前綴應顯示環境名稱)
 ```
@@ -61,6 +54,7 @@ source .myvenv/Scripts/activate
 # 升級 pip 到最新版本
 python -m pip install --upgrade pip
 ```
+**最低需求**: pip 25.1.1+
 
 ### 3. 套件安裝
 
@@ -93,8 +87,20 @@ pip install -r requirements.txt
 ---
 ### 5. Azure CLI 安裝
 ```base 
+# For Windows
 $ winget install -e --id Microsoft.AzureCLI
+
+# For Linux
+$ sudo apt-get install azure-cli
+
+# For Alpine Linux (如 Codespace 無 apt-get 時)
+$ sudo apk add --no-cache python3 py3-pip curl bash gcc musl-dev libffi-dev openssl-dev cargo
+$ pip install azure-cli
+
+# Check Azure CLI version
+$ az version
 ```
+**最低需求**: azure-cli 2.62.0+
 ## ⚙️ 環境變數設定
 ### 快速設定與驗證
 ```bash
