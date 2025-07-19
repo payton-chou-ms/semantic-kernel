@@ -120,7 +120,10 @@ async def main():
         print(f"Sentiments: {value.sentiments}")
         print(f"Entities: {value.entities}")
 ```
-
+#### 基本並行範例 with UI (step1_concurrent_ui.py)
+```python
+chainlit run step1_concurrent_ui.py
+```
 ---
 
 ## 2. Sequential Orchestration (順序協調)
