@@ -5,7 +5,11 @@ import asyncio
 from azure.ai.agents.models import BingGroundingTool
 from azure.identity.aio import DefaultAzureCredential
 
-from semantic_kernel.agents import AzureAIAgent, AzureAIAgentSettings, AzureAIAgentThread
+from semantic_kernel.agents import (
+    AzureAIAgent,
+    AzureAIAgentSettings,
+    AzureAIAgentThread,
+)
 from semantic_kernel.contents import (
     AnnotationContent,
     ChatMessageContent,
@@ -41,7 +45,7 @@ async def main() -> None:
         AzureAIAgent.create_client(credential=creds) as client,
     ):
         # 1. Enter your Bing Grounding Connection Name
-        bing_connection = await client.connections.get(name="<your-bing-grounding-connection-name>")
+        bing_connection = await client.connections.get(name="mybingsearch")
         conn_id = bing_connection.id
 
         # 2. Initialize agent bing tool and add the connection id
@@ -70,7 +74,9 @@ async def main() -> None:
             print(f"# User: '{TASK}'")
             # 6. Invoke the agent for the specified thread for response
             async for response in agent.invoke(
-                messages=TASK, thread=thread, on_intermediate_message=handle_intermediate_steps
+                messages=TASK,
+                thread=thread,
+                on_intermediate_message=handle_intermediate_steps,
             ):
                 print(f"# {response.name}: {response}")
                 thread = response.thread

@@ -5,7 +5,11 @@ import asyncio
 from azure.ai.agents.models import BingGroundingTool
 from azure.identity.aio import DefaultAzureCredential
 
-from semantic_kernel.agents import AzureAIAgent, AzureAIAgentSettings, AzureAIAgentThread
+from semantic_kernel.agents import (
+    AzureAIAgent,
+    AzureAIAgentSettings,
+    AzureAIAgentThread,
+)
 from semantic_kernel.contents import (
     ChatMessageContent,
     FunctionCallContent,
@@ -46,7 +50,7 @@ async def main() -> None:
         AzureAIAgent.create_client(credential=creds) as client,
     ):
         # 1. Enter your Bing Grounding Connection Name
-        bing_connection = await client.connections.get(name="<your-bing-grounding-connection-name>")
+        bing_connection = await client.connections.get(name="mybingsearch")
         conn_id = bing_connection.id
 
         # 2. Initialize agent bing tool and add the connection id
@@ -76,7 +80,9 @@ async def main() -> None:
             # 6. Invoke the agent for the specified thread for response
             first_chunk = True
             async for response in agent.invoke_stream(
-                messages=TASK, thread=thread, on_intermediate_message=handle_streaming_intermediate_steps
+                messages=TASK,
+                thread=thread,
+                on_intermediate_message=handle_streaming_intermediate_steps,
             ):
                 if first_chunk:
                     print(f"# {response.name}: ", end="", flush=True)
@@ -85,7 +91,10 @@ async def main() -> None:
                 thread = response.thread
 
                 # 7. Show annotations
-                if any(isinstance(item, StreamingAnnotationContent) for item in response.items):
+                if any(
+                    isinstance(item, StreamingAnnotationContent)
+                    for item in response.items
+                ):
                     print()
                     for annotation in response.items:
                         if isinstance(annotation, StreamingAnnotationContent):
