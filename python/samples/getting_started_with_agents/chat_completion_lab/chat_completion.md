@@ -144,6 +144,23 @@ agent = ChatCompletionAgent(
 
 **使用場景**: 智能助手、自動化工作流程
 
+#### 補充：Step 4 與 Step 5 關鍵技術差異
+
+##### 1. 函數調用方式
+- **Step 4**：手動管理插件調用
+- **Step 5**：自動函數調用 - AI 模型自動決定何時調用哪個函數
+
+##### 2. 架構設計
+- **Step 4**：簡單直接的構造方式
+- **Step 5**：使用 Kernel 作為服務容器，支援更複雜的配置
+
+##### 3. 執行設定
+- **Step 4**：使用預設設定
+- **Step 5**：透過 `KernelArguments` 和 `settings` 進行精細控制
+
+##### 總結
+Step 5 相比 Step 4 引入了 **Kernel 架構** 和 **自動函數調用功能**，提供了更靈活和智能的插件管理方式。
+
 ---
 
 ### Step 06: 代理群組聊天 (step06_chat_completion_agent_group_chat.py)
@@ -237,6 +254,24 @@ logging.basicConfig(level=logging.INFO)
 ```
 
 **使用場景**: 開發調試、系統監控、性能分析
+
+#### 關鍵觸發點
+
+日誌是在以下迴圈中觸發並印出的：
+
+```python
+# 5. Invoke the chat
+async for content in group_chat.invoke():  # ← 這裡觸發所有日誌
+    print(f"# {content.name}: {content.content}")
+```
+
+#### 每次迭代時的日誌順序
+
+1. **選擇代理** → 印出選擇日誌
+2. **調用代理** → 印出調用日誌  
+3. **AI 通信** → 印出通信相關日誌（系統提示、用戶訊息、回應、使用統計）
+4. **檢查終止條件** → 印出終止策略評估日誌
+5. **如果未結束** → 重複上述流程
 
 ---
 
