@@ -1,0 +1,27 @@
+Python 基礎教學
+
+1. 變數與資料型別
+Python 中的變數不需要宣告型別，直接賦值即可：
+- 字串：name = "Alice"
+- 整數：age = 25
+- 浮點數：height = 175.5
+- 布林值：is_student = True
+
+2. 控制結構
+# 條件判斷
+if age >= 18:
+    print("成年人")
+else:
+    print("未成年")
+
+# 迴圈
+for i in range(5):
+    print(f"數字：{i}")
+
+3. 函數定義
+def greet(name):
+    return f"Hello, {name}!"
+
+4. 串列操作
+numbers = [1, 2, 3, 4, 5]
+squares = [x**2 for x in numbers]

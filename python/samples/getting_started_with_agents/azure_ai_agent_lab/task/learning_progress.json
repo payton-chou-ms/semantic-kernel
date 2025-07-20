@@ -1,0 +1,44 @@
+[
+  {
+    "timestamp": "2025-07-20T08:18:33.730845",
+    "topic": "Python 基礎語法",
+    "activity_type": "閱讀",
+    "duration_minutes": 45,
+    "date": "2025-07-20"
+  },
+  {
+    "timestamp": "2025-07-20T08:18:42.132840",
+    "topic": "Python 函數",
+    "activity_type": "程式碼練習",
+    "duration_minutes": 30,
+    "date": "2025-07-20"
+  },
+  {
+    "timestamp": "2025-07-20T08:34:59.487574",
+    "topic": "Python 基礎語法",
+    "activity_type": "閱讀",
+    "duration_minutes": 45,
+    "date": "2025-07-20"
+  },
+  {
+    "timestamp": "2025-07-20T08:35:08.299283",
+    "topic": "Python 函數",
+    "activity_type": "程式碼練習",
+    "duration_minutes": 30,
+    "date": "2025-07-20"
+  },
+  {
+    "timestamp": "2025-07-20T08:49:21.362892",
+    "topic": "Python 基礎語法",
+    "activity_type": "閱讀",
+    "duration_minutes": 45,
+    "date": "2025-07-20"
+  },
+  {
+    "timestamp": "2025-07-20T08:49:30.660328",
+    "topic": "Python 函數",
+    "activity_type": "程式碼練習",
+    "duration_minutes": 30,
+    "date": "2025-07-20"
+  }
+]

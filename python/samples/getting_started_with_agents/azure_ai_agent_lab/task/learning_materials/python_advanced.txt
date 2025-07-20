@@ -1,0 +1,26 @@
+Python 進階概念
+
+1. 物件導向程式設計
+class Student:
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+    
+    def study(self, subject):
+        return f"{self.name} 正在學習 {subject}"
+
+2. 例外處理
+try:
+    result = 10 / 0
+except ZeroDivisionError:
+    print("不能除以零")
+finally:
+    print("程式結束")
+
+3. 檔案操作
+with open("file.txt", "r") as f:
+    content = f.read()
+
+4. 模組與套件
+import math
+from datetime import datetime
