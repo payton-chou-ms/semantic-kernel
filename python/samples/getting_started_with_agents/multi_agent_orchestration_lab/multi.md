@@ -625,50 +625,133 @@ async def main():
 ## 5. Magentic Orchestration (Magentic 協調)
 
 ### 主要情境
-複雜任務解決系統，結合研究和執行能力，靈感來自 Microsoft Research 的 Magentic One 系統。
+複雜任務解決系統，結合研究和執行能力，靈感來自 Microsoft Research 的 Magentic One 系統。適用於需要多種專業能力協作完成的複雜任務。
 
 ### 技術特色
 - **AI 規劃管理**: StandardMagenticManager 使用精調 prompt 控制流程
-- **多功能 Agent**: 結合網路搜尋和程式執行能力
-- **OpenAI Assistant**: 整合 OpenAI Assistant API 和 Code Interpreter
+- **多功能 Agent**: 結合資訊收集和資料分析能力
+- **Azure AI Agent**: 使用 Azure AI Agent 服務和自訂插件
 - **結構化輸出**: 管理器需要支援結構化輸出的模型
 
 ### 核心程式碼 (step5_magentic.py)
 
 ```python
-from semantic_kernel.agents import (
-    Agent, ChatCompletionAgent, MagenticOrchestration, 
-    OpenAIAssistantAgent, StandardMagenticManager,
-)
-from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion, OpenAISettings
+import asyncio
+import os
+from dotenv import load_dotenv
+from azure.identity.aio import DefaultAzureCredential
 
-async def agents() -> list[Agent]:
-    """建立參與 Magentic 協調的 Agent"""
+from semantic_kernel.agents import (
+    Agent,
+    AzureAIAgent,
+    AzureAIAgentSettings,
+    MagenticOrchestration,
+    StandardMagenticManager,
+)
+from semantic_kernel.agents.runtime import InProcessRuntime
+from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
+from semantic_kernel.contents import ChatMessageContent
+from semantic_kernel.functions import kernel_function
+
+# 載入環境變數
+load_dotenv()
+MY_AZURE_OPENAI_ENDPOINT = os.getenv("MY_AZURE_OPENAI_ENDPOINT")
+
+# 定義研究插件
+class ResearchPlugin:
+    @kernel_function
+    def research_topic(self, topic: str) -> str:
+        """研究指定主題的資訊。"""
+        return f"已研究主題：{topic}。找到相關的學術資料和最新研究成果。"
+
+# 定義程式分析插件
+class CodeAnalysisPlugin:
+    @kernel_function
+    def analyze_data(self, data_type: str) -> str:
+        """分析指定類型的資料。"""
+        return f"已分析 {data_type} 資料，生成統計報告和視覺化圖表。"
+
+    @kernel_function
+    def calculate_energy_consumption(self, model_name: str, hours: int) -> str:
+        """計算模型的能源消耗。"""
+        energy_values = {"ResNet-50": 5.76, "BERT-base": 9.18, "GPT-2": 12.96}
+        energy = energy_values.get(model_name, 10.0) * (hours / 24)
+        return f"{model_name} 在 {hours} 小時內消耗 {energy:.2f} kWh 能源。"
+
+async def get_agents(client) -> list[Agent]:
+    """建立參與 Magentic 協調的代理程式清單"""
     
-    # 研究 Agent - 具備網路搜尋能力
-    research_agent = ChatCompletionAgent(
+    # 建立研究代理
+    research_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
         name="ResearchAgent",
-        description="A helpful assistant with access to web search.",
-        instructions="You are a Researcher. You find information without additional computation or quantitative analysis.",
-        service=OpenAIChatCompletion(ai_model_id="gpt-4o-search-preview"),  # 支援搜尋的模型
+        description="具有網路搜尋存取權限的有用助手。專門執行研究和資訊收集。",
+        instructions="您是研究員。您尋找資訊而不進行額外的計算或量化分析。專注於收集和整理相關的學術和技術資訊。",
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "ResearchPlugin-research_topic",
+                    "description": "研究指定主題的資訊。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "topic": {"type": "string", "description": "要研究的主題"}
+                        },
+                        "required": ["topic"],
+                    },
+                },
+            }
+        ],
     )
-    
-    # 程式 Agent - 具備程式執行能力
-    client = OpenAIAssistantAgent.create_client()
-    code_interpreter_tool, code_interpreter_tool_resources = OpenAIAssistantAgent.configure_code_interpreter_tool()
-    
-    definition = await client.beta.assistants.create(
-        model=OpenAISettings().chat_model_id,
-        name="CoderAgent", 
-        description="A helpful assistant that writes and executes code to process and analyze data.",
-        instructions="You solve questions using code. Please provide detailed analysis and computation process.",
-        tools=code_interpreter_tool,  # 程式解釋器工具
-        tool_resources=code_interpreter_tool_resources,
-    )
-    
-    coder_agent = OpenAIAssistantAgent(
+    research_agent = AzureAIAgent(
         client=client,
-        definition=definition,
+        definition=research_agent_definition,
+        plugins=[ResearchPlugin()],
+    )
+
+    # 建立程式分析代理
+    coder_agent_definition = await client.agents.create_agent(
+        model=AzureAIAgentSettings().model_deployment_name,
+        name="CoderAgent",
+        description="撰寫和執行程式碼來處理和分析資料的有用助手。",
+        instructions="您使用程式碼解決問題。請提供詳細的分析和計算過程。專精於資料分析、統計計算和能源效率評估。",
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "CodeAnalysisPlugin-analyze_data",
+                    "description": "分析指定類型的資料。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "data_type": {"type": "string", "description": "要分析的資料類型"}
+                        },
+                        "required": ["data_type"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "CodeAnalysisPlugin-calculate_energy_consumption",
+                    "description": "計算模型的能源消耗。",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "model_name": {"type": "string", "description": "模型名稱"},
+                            "hours": {"type": "integer", "description": "運行小時數"},
+                        },
+                        "required": ["model_name", "hours"],
+                    },
+                },
+            },
+        ],
+    )
+    coder_agent = AzureAIAgent(
+        client=client,
+        definition=coder_agent_definition,
+        plugins=[CodeAnalysisPlugin()],
     )
     
     return [research_agent, coder_agent]
@@ -679,35 +762,55 @@ def agent_response_callback(message: ChatMessageContent) -> None:
 
 async def main():
     """主要執行函數"""
-    # 1. 建立 Magentic 協調器
-    # StandardMagenticManager 使用經過精調的 prompt
-    # 也接受自訂 prompt 供進階使用者使用
-    # 對於更進階的場景，可以繼承 MagenticManagerBase 實作自訂管理器邏輯
-    # 標準管理器需要支援結構化輸出的聊天完成模型
-    magentic_orchestration = MagenticOrchestration(
-        members=await agents(),
-        manager=StandardMagenticManager(
-            chat_completion_service=OpenAIChatCompletion()  # 需支援結構化輸出
-        ),
-        agent_response_callback=agent_response_callback,
-    )
-    
-    # 2. 建立並啟動執行環境
-    runtime = InProcessRuntime()
-    runtime.start()
-    
-    # 3. 執行複雜任務
-    orchestration_result = await magentic_orchestration.invoke(
-        task="Research the latest trends in AI and create a Python script to analyze the data",
-        runtime=runtime,
-    )
-    
-    # 4. 取得結果
-    value = await orchestration_result.get()
-    print(f"***** Final Result *****\n{value}")
-    
-    # 5. 停止執行環境
-    await runtime.stop_when_idle()
+    async with (
+        DefaultAzureCredential() as creds,
+        AzureAIAgent.create_client(credential=creds) as client,
+    ):
+        # 1. 建立具有兩個 Azure AI 代理程式和 Magentic 管理員的編排
+        # StandardMagenticManager 使用經過精心調整的提示
+        # 也接受自訂提示供進階使用者使用
+        # 標準管理員需要支援結構化輸出的聊天完成模型
+        agents_list = await get_agents(client)
+
+        magentic_orchestration = MagenticOrchestration(
+            members=agents_list,
+            manager=StandardMagenticManager(
+                chat_completion_service=AzureChatCompletion(
+                    endpoint=MY_AZURE_OPENAI_ENDPOINT,
+                )
+            ),
+            agent_response_callback=agent_response_callback,
+        )
+
+        # 2. 建立運行時並啟動
+        runtime = InProcessRuntime()
+        runtime.start()
+
+        try:
+            # 3. 使用任務和運行時呼叫編排
+            orchestration_result = await magentic_orchestration.invoke(
+                task=(
+                    "我正在準備一份關於不同機器學習模型架構能源效率的報告。"
+                    "比較在標準資料集上 ResNet-50、BERT-base 和 GPT-2 的預估訓練和推論能源消耗"
+                    "（例如，ResNet 使用 ImageNet、BERT 使用 GLUE、GPT-2 使用 WebText）。"
+                    "然後，假設在 Azure Standard_NC6s_v3 VM 上訓練 24 小時，估算與每個模型相關的 CO2 排放量。"
+                    "為了清晰起見，請提供表格，並建議每種任務類型（影像分類、文字分類和文字生成）"
+                    "最節能的模型。"
+                ),
+                runtime=runtime,
+            )
+
+            # 4. 等待結果
+            value = await orchestration_result.get()
+            print(f"\n最終結果：\n{value}")
+
+        finally:
+            # 5. 閒置時停止運行時
+            await runtime.stop_when_idle()
+
+            # 6. 清理：刪除代理程式
+            for agent in agents_list:
+                await client.agents.delete_agent(agent.id)
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -720,58 +823,55 @@ if __name__ == "__main__":
 3. **自適應流程**: 根據任務複雜度動態調整 Agent 協作方式
 4. **可擴展架構**: 支援自訂管理器邏輯和 Agent 組合
 
----
+### 插件系統
 
-## 技術架構與最佳實踐
+Magentic 協調模式的一個重要特色是使用插件系統來擴展 Agent 的能力：
 
-### 共同技術架構
-
-所有協調模式都基於以下核心架構：
-
+#### 研究插件 (ResearchPlugin)
 ```python
-# 1. 執行環境管理
-runtime = InProcessRuntime()
-runtime.start()
-
-# 2. Agent 建立與配置
-agents = [
-    ChatCompletionAgent(
-        name="AgentName",
-        instructions="Agent 角色和指令",
-        service=AzureChatCompletion(),
-        plugins=[CustomPlugin()],  # 可選插件
-    )
-]
-
-# 3. 協調器建立
-orchestration = OrchestrationClass(
-    members=agents,
-    # 協調特定參數...
-)
-
-# 4. 任務執行
-result = await orchestration.invoke(task="任務描述", runtime=runtime)
-value = await result.get(timeout=30)
-
-# 5. 清理資源
-await runtime.stop_when_idle()
+class ResearchPlugin:
+    @kernel_function
+    def research_topic(self, topic: str) -> str:
+        """研究指定主題的資訊"""
+        # 實際應用中可整合真正的搜尋 API
+        return f"已研究主題：{topic}。找到相關的學術資料和最新研究成果。"
 ```
 
-### 開發最佳實踐
+#### 程式分析插件 (CodeAnalysisPlugin)
+```python
+class CodeAnalysisPlugin:
+    @kernel_function
+    def analyze_data(self, data_type: str) -> str:
+        """分析指定類型的資料"""
+        return f"已分析 {data_type} 資料，生成統計報告和視覺化圖表。"
 
-1. **環境設定**: 確保設定 `OPENAI_API_KEY` 和 `OPENAI_CHAT_MODEL_ID`
-2. **錯誤處理**: 使用 try-catch 處理執行異常和超時
-3. **資源管理**: 確保 runtime 正確啟動和停止
-4. **回調使用**: 善用回調函數監控執行過程
-5. **取消機制**: 長時間執行的任務考慮實作取消功能
+    @kernel_function
+    def calculate_energy_consumption(self, model_name: str, hours: int) -> str:
+        """計算模型的能源消耗"""
+        energy_values = {"ResNet-50": 5.76, "BERT-base": 9.18, "GPT-2": 12.96}
+        energy = energy_values.get(model_name, 10.0) * (hours / 24)
+        return f"{model_name} 在 {hours} 小時內消耗 {energy:.2f} kWh 能源。"
+```
 
-### 性能優化建議
+### 與其他協調模式的比較
 
-- **並行協調**: 適合獨立任務，能最大化並行處理效益
-- **順序協調**: 適合需要上下文傳遞的流水線處理
-- **群組聊天**: 適合需要多方討論和反覆修正的場景
-- **交接協調**: 適合複雜的分流和專業化處理
-- **Magentic 協調**: 適合需要多種能力組合的複雜任務
+| 特性           | Magentic     | Sequential | GroupChat | Handoff  |
+| -------------- | ------------ | ---------- | --------- | -------- |
+| **執行方式**   | AI 智能規劃  | 固定順序   | 輪轉討論  | 條件分流 |
+| **Agent 互動** | 動態協作     | 單向傳遞   | 雙向討論  | 智能交接 |
+| **適用場景**   | 複雜任務解決 | 流程處理   | 創意協作  | 服務分流 |
+| **管理複雜度** | 高           | 低         | 中        | 中高     |
+| **靈活性**     | 極高         | 低         | 中        | 高       |
+
+### 最佳實踐建議
+
+1. **插件設計**: 將複雜功能封裝在插件中，保持 Agent 指令簡潔
+2. **任務分解**: 清楚描述複雜任務，讓 AI 管理器能夠正確分配工作
+3. **環境管理**: 確保正確設定 Azure 認證和環境變數
+4. **錯誤處理**: 實作完整的資源清理機制
+5. **監控回調**: 使用回調函數監控執行過程，便於除錯
+
+Magentic 協調模式特別適合需要多種專業能力協作的複雜任務，是 Semantic Kernel 中最先進的協調方式。
 
 ---
 
