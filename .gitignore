@@ -499,3 +499,4 @@ swa-cli.config.json
 
 # dapr extension files
 **/dapr.yaml
+.myvenv/
