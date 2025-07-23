@@ -40,5 +40,19 @@
     "activity_type": "程式碼練習",
     "duration_minutes": 30,
     "date": "2025-07-20"
+  },
+  {
+    "timestamp": "2025-07-23T10:22:21.557642",
+    "topic": "Python 基礎語法",
+    "activity_type": "閱讀",
+    "duration_minutes": 45,
+    "date": "2025-07-23"
+  },
+  {
+    "timestamp": "2025-07-23T10:22:31.902966",
+    "topic": "Python 函數",
+    "activity_type": "程式碼練習",
+    "duration_minutes": 30,
+    "date": "2025-07-23"
   }
 ]
